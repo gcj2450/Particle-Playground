@@ -20,9 +20,13 @@ public class ViewportSplineParticles : MonoBehaviour {
 		mainCamera = Camera.main;
 
 		// Parent the particle system to the main camera
-		particles.particleSystemTransform.parent = mainCamera.transform;
+		particles.particleSystemTransform.parent = mainCamera.transform; 
+		#if UNITY_5_5_OR_NEWER
+		ParticleSystem.MainModule mainModule = particles.shurikenParticleSystem.main;
+		mainModule.simulationSpace = ParticleSystemSimulationSpace.Local;
+		#else
 		particles.shurikenParticleSystem.simulationSpace = ParticleSystemSimulationSpace.Local;
-
+		#endif
 		// Create a new spline and set it up
 		spline = new GameObject("Viewport Spline", typeof(PlaygroundSpline)).GetComponent<PlaygroundSpline>();
 		spline.Loop = true;

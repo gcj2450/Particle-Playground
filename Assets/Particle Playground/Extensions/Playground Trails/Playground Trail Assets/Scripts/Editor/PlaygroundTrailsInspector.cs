@@ -32,6 +32,7 @@ public class PlaygroundTrailsInspector : Editor {
 	SerializedProperty s_multithreading;
 	SerializedProperty s_receiveShadows;
 	SerializedProperty s_castShadows;
+	SerializedProperty s_layer;
 
 	// GUI
 	public static GUIStyle boxStyle;
@@ -69,10 +70,21 @@ public class PlaygroundTrailsInspector : Editor {
 		s_multithreading = s_trails.FindProperty("multithreading");
 
 		s_receiveShadows = s_trails.FindProperty("receiveShadows");
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7
 		s_castShadows = s_trails.FindProperty("castShadows");
 #else
 		s_castShadows = s_trails.FindProperty("shadowCastingMode");
+#endif
+		s_layer = s_trails.FindProperty("layer");
+
+		s_trails.Update();
+		if (s_layer.intValue < 0)
+			s_layer.intValue = trails.playgroundSystem.gameObject.layer;
+		s_layer.intValue = Mathf.Clamp(s_layer.intValue, 0, 32);
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+		s_trails.ApplyModifiedProperties();
+#else
+		s_trails.ApplyModifiedPropertiesWithoutUndo();
 #endif
 		playgroundSettings = PlaygroundSettingsC.GetReference();
 		playgroundLanguage = PlaygroundSettingsC.GetLanguage();
@@ -138,6 +150,7 @@ public class PlaygroundTrailsInspector : Editor {
 					EditorGUILayout.PropertyField(s_customRenderScale, new GUIContent(playgroundLanguage.customRenderScale));
 				EditorGUILayout.PropertyField(s_castShadows, new GUIContent(playgroundLanguage.castShadows));
 				EditorGUILayout.PropertyField(s_receiveShadows, new GUIContent(playgroundLanguage.receiveShadows));
+				s_layer.intValue = EditorGUILayout.LayerField("Layer", s_layer.intValue);
 				EditorGUILayout.Separator();
 			}
 

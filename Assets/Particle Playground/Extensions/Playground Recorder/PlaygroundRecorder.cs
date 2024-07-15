@@ -377,8 +377,16 @@ namespace ParticlePlayground {
 				return;
 			if (!_isReplaying && localSpaceOnPlayback)
 			{
+				#if UNITY_5_5_OR_NEWER
+				ParticleSystem.MainModule mainModule = playgroundSystem.shurikenParticleSystem.main;
+				_previousSimulationSpace = mainModule.simulationSpace;
+				mainModule.simulationSpace = ParticleSystemSimulationSpace.Local;
+				#else
 				_previousSimulationSpace = playgroundSystem.shurikenParticleSystem.simulationSpace;
 				playgroundSystem.shurikenParticleSystem.simulationSpace = ParticleSystemSimulationSpace.Local;
+				#endif
+
+
 			}
 
 			playgroundSystem.inPlayback = true;
@@ -418,7 +426,14 @@ namespace ParticlePlayground {
 			if (!_hasPlaygroundSystem)
 				return;
 			if (_isReplaying && localSpaceOnPlayback)
+			{
+				#if UNITY_5_5_OR_NEWER
+				ParticleSystem.MainModule mainModule = playgroundSystem.shurikenParticleSystem.main;
+				mainModule.simulationSpace = _previousSimulationSpace;
+				#else
 				playgroundSystem.shurikenParticleSystem.simulationSpace = _previousSimulationSpace;
+				#endif
+			}
 			playgroundSystem.inPlayback = false;
 			_isReplaying = false;
 			if (_isRecording)
@@ -740,7 +755,7 @@ namespace ParticlePlayground {
 				{
 					Color32 inColor = fadeIn? new Color32(recordedFrames[normalizedFrame].particles[i].color.r, recordedFrames[normalizedFrame].particles[i].color.g, recordedFrames[normalizedFrame].particles[i].color.b, 0) : new Color32();
 					_playbackParticles[i].position = Vector3.Lerp (recordedFrames[normalizedFrame].particles[i].sourcePosition, recordedFrames[targetFrame].particles[i].position, deltaTime);
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 					_playbackParticles[i].size = Mathf.Lerp (!sizeIn? recordedFrames[normalizedFrame].particles[i].startingSize : 0, recordedFrames[targetFrame].particles[i].size, deltaTime);
 					_playbackParticles[i].color = Color.Lerp (!fadeIn? recordedFrames[normalizedFrame].particles[i].color : inColor, recordedFrames[targetFrame].particles[i].color, deltaTime);
 #else
@@ -754,7 +769,7 @@ namespace ParticlePlayground {
 				else
 				{
 					_playbackParticles[i].position = Vector3.Lerp (recordedFrames[normalizedFrame].particles[i].position, recordedFrames[targetFrame].particles[i].position, deltaTime);
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 					_playbackParticles[i].size = Mathf.Lerp (recordedFrames[normalizedFrame].particles[i].size, recordedFrames[targetFrame].particles[i].size, deltaTime);
 					_playbackParticles[i].color = Color.Lerp (recordedFrames[normalizedFrame].particles[i].color, recordedFrames[targetFrame].particles[i].color, deltaTime);
 #else
@@ -762,7 +777,7 @@ namespace ParticlePlayground {
 					_playbackParticles[i].startColor = Color.Lerp (recordedFrames[normalizedFrame].particles[i].color, recordedFrames[targetFrame].particles[i].color, deltaTime);
 #endif
 					_playbackParticles[i].rotation = Mathf.Lerp (recordedFrames[normalizedFrame].particles[i].rotation, recordedFrames[targetFrame].particles[i].rotation, deltaTime);
-					_playbackParticles[i].lifetime = Mathf.Lerp (recordedFrames[normalizedFrame].particles[i].lifetime, recordedFrames[targetFrame].particles[i].lifetime, deltaTime);
+					_playbackParticles[i].remainingLifetime = Mathf.Lerp (recordedFrames[normalizedFrame].particles[i].lifetime, recordedFrames[targetFrame].particles[i].lifetime, deltaTime);
 				}
 				
 			}
@@ -932,9 +947,9 @@ namespace ParticlePlayground {
 			ParticleSystem.Particle particle = new ParticleSystem.Particle();
 			particle.position = position;
 			particle.rotation = rotation;
-			particle.lifetime = lifetime;
+			particle.remainingLifetime = lifetime;
 			particle.startLifetime = startLifetime;
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 			particle.size = size;
 			particle.color = color;
 #else

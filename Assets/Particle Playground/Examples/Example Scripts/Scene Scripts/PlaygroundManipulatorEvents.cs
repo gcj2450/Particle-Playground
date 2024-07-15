@@ -10,8 +10,8 @@ public class PlaygroundManipulatorEvents : MonoBehaviour {
 	public PlaygroundParticlesC popTurbulenceParticles;		// The small bubbles when a bubble pops
 	public float maxRandomTurbulence = 1f;					// The maximum random velocity for popTurbulenceParticles
 	public float guiUpdateTime = .25f;						// The time between gui updates for the upper left info text
-	public GUIText text;									// The upper left info text
-	public GUIText popText;									// The text to display whenever highest pop changes
+	//public GUIText text;									// The upper left info text
+	//public GUIText popText;									// The text to display whenever highest pop changes
 
 	ManipulatorObjectC manipulator;							// Cached manipulator
 
@@ -38,8 +38,8 @@ public class PlaygroundManipulatorEvents : MonoBehaviour {
 		manipulator.particleEventCollision += OnManipulatorCollision;
 
 		mainCamera = Camera.main;
-		popTextColor = popText.color;
-		InvokeRepeating ("UpdateGUI", 0, guiUpdateTime);
+		//popTextColor = popText.color;
+		//InvokeRepeating ("UpdateGUI", 0, guiUpdateTime);
 	}
 
 	void Update () {
@@ -78,17 +78,17 @@ public class PlaygroundManipulatorEvents : MonoBehaviour {
 		if (manipulatorParticles.Count>0) {
 			if (manipulatorParticles.Count>highestPop) {
 				popTextColor.a = 1f;
-				popText.color = popTextColor;
+				//popText.color = popTextColor;
 				highestPop = manipulatorParticles.Count;
-				popText.text = highestPop.ToString();
+				//popText.text = highestPop.ToString();
 				Vector2 pixelOffset = mainCamera.WorldToScreenPoint(manipulatorTransform.position);
 				pixelOffset.y += 50;
-				popText.pixelOffset = pixelOffset;
+				//popText.pixelOffset = pixelOffset;
 
 				int highestNow = highestPop;
 				while (popTextColor.a>0 && highestNow==highestPop) {
 					popTextColor.a -= .5f*Time.deltaTime;
-					popText.color = popTextColor;
+					//popText.color = popTextColor;
 					yield return null;
 				}
 			}
@@ -150,9 +150,9 @@ public class PlaygroundManipulatorEvents : MonoBehaviour {
 		);
 	}
 
-	void UpdateGUI () {
+	//void UpdateGUI () {
 
-		// Update the gui text in the upper left corner (called each guiUpdateTime)
-		text.text = "Bubbles in control: "+manipulator.particles.Count+"\nHighest pop: "+highestPop;
-	}
+	//	// Update the gui text in the upper left corner (called each guiUpdateTime)
+	//	text.text = "Bubbles in control: "+manipulator.particles.Count+"\nHighest pop: "+highestPop;
+	//}
 }

@@ -155,7 +155,7 @@ public class PlaygroundInspectorC : Editor {
 			}
 			
 			Handles.DrawLine(thisManipulator.transform.transform.position, manipulatorHandlePosition);
-			thisManipulator.strength = Handles.ScaleValueHandle(thisManipulator.strength, manipulatorHandlePosition, Quaternion.identity, HandleUtility.GetHandleSize(manipulatorHandlePosition), Handles.SphereCap, 1);      
+			thisManipulator.strength = Handles.ScaleValueHandle(thisManipulator.strength, manipulatorHandlePosition, Quaternion.identity, HandleUtility.GetHandleSize(manipulatorHandlePosition), Handles.SphereHandleCap, 1);      
 			if (thisManipulator.enabled && GUIUtility.hotControl>0)
 				Handles.Label(manipulatorHandlePosition+new Vector3(1f,1f,0f), playgroundLanguage.strength+" "+thisManipulator.strength.ToString("f2"));
 			
@@ -231,9 +231,9 @@ public class PlaygroundInspectorC : Editor {
 		Handles.DrawLine(boxFrontBottomRight, boxBackBottomRight);
 		
 		// Draw extents handles
-		boxFrontDot = Handles.Slider(boxFrontDot, manipulator.transform.right, HandleUtility.GetHandleSize(boxFrontDot)*.03f, Handles.DotCap, 0f);
-		boxUpDot = Handles.Slider(boxUpDot, manipulator.transform.up, HandleUtility.GetHandleSize(boxUpDot)*.03f, Handles.DotCap, 0f);
-		boxLeftDot = Handles.Slider(boxLeftDot, manipulator.transform.forward, HandleUtility.GetHandleSize(boxLeftDot)*.03f, Handles.DotCap, 0f);
+		boxFrontDot = Handles.Slider(boxFrontDot, manipulator.transform.right, HandleUtility.GetHandleSize(boxFrontDot)*.03f, Handles.DotHandleCap, 0f);
+		boxUpDot = Handles.Slider(boxUpDot, manipulator.transform.up, HandleUtility.GetHandleSize(boxUpDot)*.03f, Handles.DotHandleCap, 0f);
+		boxLeftDot = Handles.Slider(boxLeftDot, manipulator.transform.forward, HandleUtility.GetHandleSize(boxLeftDot)*.03f, Handles.DotHandleCap, 0f);
 		
 		manipulator.bounds.extents = new Vector3(
 			manipulator.transform.transform.InverseTransformPoint(boxFrontDot).x-manipulator.bounds.center.x,
@@ -344,7 +344,10 @@ public class PlaygroundInspectorC : Editor {
 					EditorGUILayout.Separator();
 					
 					if (manipulators.arraySize>0) {
-						
+
+						float screenDPI = playgroundSettings.GetScreenDPI();
+						float guiDpiScale = screenDPI / 72f;
+
 						for (int i = 0; i<manipulators.arraySize; i++) {
 							if (!playgroundScriptReference.manipulators[i].enabled)
 								GUI.contentColor = Color.gray;
@@ -363,7 +366,7 @@ public class PlaygroundInspectorC : Editor {
 							EditorGUILayout.BeginHorizontal();
 							
 							GUILayout.Label(i.ToString(), EditorStyles.miniLabel, GUILayout.Width(18));
-							playgroundScriptReference.manipulators[i].unfolded = GUILayout.Toggle(playgroundScriptReference.manipulators[i].unfolded, ManipulatorTypeName(playgroundScriptReference.manipulators[i].type), EditorStyles.foldout, GUILayout.Width(Screen.width/4));
+							playgroundScriptReference.manipulators[i].unfolded = GUILayout.Toggle(playgroundScriptReference.manipulators[i].unfolded, ManipulatorTypeName(playgroundScriptReference.manipulators[i].type), EditorStyles.foldout, GUILayout.Width(Screen.width/guiDpiScale/5));
 							if (playgroundScriptReference.manipulators[i].transform.available) {
 								if (GUILayout.Button(" ("+mName+")", EditorStyles.label)) {
 									Selection.activeGameObject = playgroundScriptReference.manipulators[i].transform.transform.gameObject;
@@ -526,7 +529,7 @@ public class PlaygroundInspectorC : Editor {
 		SerializedProperty serializedManipulatorStrengthDistance;
 		SerializedProperty serializedManipulatorApplyLifetimeStrength;
 		SerializedProperty serializedManipulatorLifetimeStrength;
-		
+
 		thisManipulator.enabled = EditorGUILayout.ToggleLeft(playgroundLanguage.enabled, thisManipulator.enabled);
 		GUI.enabled = thisManipulator.enabled;
 		
@@ -607,28 +610,28 @@ public class PlaygroundInspectorC : Editor {
 		EditorGUILayout.BeginHorizontal();
 		serializedManipulatorApplyLifetimeStrength = serializedManipulator.FindPropertyRelative("applyParticleLifetimeStrength");
 		serializedManipulatorLifetimeStrength = serializedManipulator.FindPropertyRelative("particleLifetimeStrength");
-		serializedManipulatorApplyLifetimeStrength.boolValue = EditorGUILayout.ToggleLeft(playgroundLanguage.particleLifetimeStrength, serializedManipulatorApplyLifetimeStrength.boolValue, GUILayout.Width (150));
+		serializedManipulatorApplyLifetimeStrength.boolValue = EditorGUILayout.ToggleLeft(playgroundLanguage.particleLifetimeStrength, serializedManipulatorApplyLifetimeStrength.boolValue, GUILayout.MaxWidth (150));
 		GUILayout.FlexibleSpace();
 		GUI.enabled = serializedManipulatorApplyLifetimeStrength.boolValue && thisManipulator.enabled;
-		EditorGUILayout.PropertyField(serializedManipulatorLifetimeStrength, new GUIContent(""), GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-16));
+		EditorGUILayout.PropertyField(serializedManipulatorLifetimeStrength, new GUIContent(""));
 		GUI.enabled = thisManipulator.enabled;
 		EditorGUILayout.EndHorizontal();
 		EditorGUILayout.Separator();
 		
 		GUILayout.BeginHorizontal();
-		thisManipulator.applyLifetimeFilter = EditorGUILayout.ToggleLeft (playgroundLanguage.lifetimeFilter, thisManipulator.applyLifetimeFilter, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+		thisManipulator.applyLifetimeFilter = EditorGUILayout.ToggleLeft (playgroundLanguage.lifetimeFilter, thisManipulator.applyLifetimeFilter, GUILayout.MaxWidth(120));
 		float minFilter = thisManipulator.lifetimeFilterMinimum;
 		float maxFilter = thisManipulator.lifetimeFilterMaximum;
-		EditorGUILayout.MinMaxSlider (ref minFilter, ref maxFilter, 0f, 1f);
+		EditorGUILayout.MinMaxSlider (ref minFilter, ref maxFilter, 0f, 1f, GUILayout.ExpandWidth(false));
 		thisManipulator.lifetimeFilterMinimum = EditorGUILayout.FloatField(Mathf.Clamp01(minFilter), GUILayout.Width(50));
 		thisManipulator.lifetimeFilterMaximum = EditorGUILayout.FloatField(Mathf.Clamp01(maxFilter), GUILayout.Width(50));
 		GUILayout.EndHorizontal();
 		
 		GUILayout.BeginHorizontal();
-		thisManipulator.applyParticleFilter = EditorGUILayout.ToggleLeft (playgroundLanguage.particleFilter, thisManipulator.applyParticleFilter, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+		thisManipulator.applyParticleFilter = EditorGUILayout.ToggleLeft (playgroundLanguage.particleFilter, thisManipulator.applyParticleFilter, GUILayout.MaxWidth(120));
 		minFilter = thisManipulator.particleFilterMinimum;
 		maxFilter = thisManipulator.particleFilterMaximum;
-		EditorGUILayout.MinMaxSlider (ref minFilter, ref maxFilter, 0f, 1f);
+		EditorGUILayout.MinMaxSlider (ref minFilter, ref maxFilter, 0f, 1f, GUILayout.ExpandWidth(false));
 		thisManipulator.particleFilterMinimum = EditorGUILayout.FloatField(Mathf.Clamp01(minFilter), GUILayout.Width(50));
 		thisManipulator.particleFilterMaximum = EditorGUILayout.FloatField(Mathf.Clamp01(maxFilter), GUILayout.Width(50));
 		GUILayout.EndHorizontal();
@@ -642,7 +645,7 @@ public class PlaygroundInspectorC : Editor {
 		
 		// Axis constraints
 		GUILayout.BeginHorizontal();
-		EditorGUILayout.LabelField(playgroundLanguage.axisConstraints, GUILayout.Width(Mathf.FloorToInt(Screen.width/2.2f)-46));
+		EditorGUILayout.LabelField(playgroundLanguage.axisConstraints, GUILayout.MaxWidth(120));
 		
 		GUILayout.Label("X", GUILayout.Width(10));
 		thisManipulator.axisConstraints.x = EditorGUILayout.Toggle(thisManipulator.axisConstraints.x, GUILayout.Width(16));
@@ -727,7 +730,7 @@ public class PlaygroundInspectorC : Editor {
 						EditorGUILayout.BeginHorizontal();
 						
 						GUILayout.Label(t.ToString(), EditorStyles.miniLabel, GUILayout.Width(18));
-						thisManipulatorProperty.targets[t].transform = EditorGUILayout.ObjectField("", thisManipulatorProperty.targets[t].transform, typeof(Transform), true) as Transform;
+						thisManipulatorProperty.targets[t].transform = EditorGUILayout.ObjectField("", thisManipulatorProperty.targets[t].transform, typeof(Transform), true, GUILayout.MinWidth(40)) as Transform;
 						if (!thisManipulatorProperty.targets[t].available) hasNull = true;
 						
 						EditorGUILayout.Separator();
@@ -1026,7 +1029,7 @@ class PlaygroundHierarchyIcon {
 			for (int i = 0; i<PlaygroundC.reference.particleSystems.Count; i++) {
 				if (PlaygroundC.reference.particleSystems[i] != null && instanceID==PlaygroundC.reference.particleSystems[i].particleSystemGameObject.GetInstanceID()) {
 					Rect rOffset = new Rect (instanceRect); 
-					rOffset.x = rOffset.width+14;
+					rOffset.x = 0;
 					if (PlaygroundC.reference.particleSystems[i].particleSystemGameObject.activeInHierarchy && PlaygroundC.reference.calculate && PlaygroundC.reference.particleSystems[i].calculate && PlaygroundC.reference.particleSystems[i].IsAlive())
 						if (EditorApplication.isPlaying && PlaygroundC.reference.particleSystems[i].IsReportingBadUpdateRate())
 							GUI.Label (rOffset, iconHeavy);

@@ -48,18 +48,19 @@ namespace ParticlePlayground {
 		/// <summary>
 		/// Determines if the trails should receive shadows. Note that the shader of the material needs to support this.
 		/// </summary>
-		[HideInInspector] public bool receiveShadows = true;
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6
+		[HideInInspector] public bool receiveShadows;
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7
 		/// <summary>
 		/// Determines if the trails should cast shadows (Unity 4). Note that the shader of the material needs to support this.
 		/// </summary>
-		[HideInInspector] public bool castShadows = true;
+		[HideInInspector] public bool castShadows = false;
 #else
 		/// <summary>
 		/// Determines if the trails should cast shadows. Note that the shader of the material needs to support this.
 		/// </summary>
 		[HideInInspector] public UnityEngine.Rendering.ShadowCastingMode shadowCastingMode;
 #endif
+		[HideInInspector] public int layer = -1;
 		/// <summary>
 		/// The time vertices is living on the trail (determines length).
 		/// </summary>
@@ -122,9 +123,15 @@ namespace ParticlePlayground {
 		[HideInInspector] public PlaygroundEventC collisionEvent;
 
 		/// <summary>
+		/// The trail point event occurs when a new trail point is set. You can listen to this event by adding this to any of your scripts: trailReference.trailPointEvent += YourFunction.
+		/// YourFunction will need to have a PlaygroundEventTrailPoint as parameter.
+		/// </summary>
+		[HideInInspector] public event OnPlaygroundTrailPoint trailPointEvent;
+
+		/// <summary>
 		/// The list of trails following each particle.
 		/// </summary>
-		private List<ParticlePlaygroundTrail> _trails = new List<ParticlePlaygroundTrail>();
+		[NonSerialized] public List<ParticlePlaygroundTrail> trails = new List<ParticlePlaygroundTrail>();
 
 		private Transform _parentTransform;
 		private GameObject _parentGameObject;
@@ -133,16 +140,20 @@ namespace ParticlePlayground {
 		private int _currentParticleCount;
 		private float _currentParticleMinLifetime;
 		private float _currentParticleMaxLifetime;
+		private bool _currentLoopValue;
 		private bool _localSpace;
 		private Vector3 _billboardTransformPosition;
-		private object _locker = new object();
 		private bool _isDoneThread = true;
 		private Matrix4x4 _localMatrix;
+		private bool _hasTrailPointEventListener = false;
+		private PlaygroundEventTrailPoint _eventTrailPoint = new PlaygroundEventTrailPoint();
+		private System.Action _trailsCalculationAction;
 
 		/// <summary>
 		/// The birth queue of trails. This will be added to whenever a particle births. As a Particle Playground system can birth particles and send particle events asynchronously a thread safe queue is needed to create the trails.
 		/// </summary>
 		readonly Queue<TrailParticleInfo> _birthQueue = new Queue<TrailParticleInfo>();
+		readonly Queue<int> _trailReuseQueue = new Queue<int>();
 
 
 		/****************************************************************************
@@ -215,7 +226,7 @@ namespace ParticlePlayground {
 				return;
 
 			// Reset trails if a crucial state is changed
-			if (_currentParticleCount != playgroundSystem.particleCount || _currentParticleMinLifetime != playgroundSystem.lifetimeMin || _currentParticleMaxLifetime != playgroundSystem.lifetime || _localSpace != (playgroundSystem.shurikenParticleSystem.simulationSpace == ParticleSystemSimulationSpace.Local))
+			if (_currentParticleCount != playgroundSystem.particleCount || _currentLoopValue != playgroundSystem.loop || _currentParticleMinLifetime != playgroundSystem.lifetimeMin || _currentParticleMaxLifetime != playgroundSystem.lifetime || _localSpace != (playgroundSystem.shurikenParticleSystem.main.simulationSpace == ParticleSystemSimulationSpace.Local))
 				ResetTrails();
 
 			// Set calculation matrix if this is local space
@@ -226,29 +237,43 @@ namespace ParticlePlayground {
 			if (material != _materialCache)
 				SetMaterial(material);
 
+			// Consume the particle birth queue
+			while (_isDoneThread && _birthQueue.Count>0)
+			{
+				// Reuse or create new trails
+				bool canReuseTrail = trails.Count > 0 && _trailReuseQueue.Count > 0;
+				int reuseQueuePeekValue = canReuseTrail? _trailReuseQueue.Peek() : 0;
+				if (canReuseTrail && (reuseQueuePeekValue < 0 || reuseQueuePeekValue > trails.Count-1 || !trails[reuseQueuePeekValue].IsQueuedForReuse()))
+				{
+					_trailReuseQueue.Dequeue();
+					canReuseTrail = false;
+				}
+				if (canReuseTrail)
+					ReuseTrail(_trailReuseQueue.Dequeue(), _birthQueue.Dequeue());
+				else
+					CreateTrail(_birthQueue.Dequeue());
+			}
+
 			// Remove any trails that has ended
 			if (_isDoneThread)
 			{
-				for (int i = 0; i<_trails.Count; i++)
+				for (int i = 0; i<trails.Count; i++)
 				{
-					if (_trails[i].trailPoints != null && _trails[i].trailPoints.Count > 1 && _trails[i].trailPoints[_trails[i].trailPoints.Count-1] != null && _trails[i].CanRemoveTrail())
+					if (trails[i].trailPoints != null && trails[i].trailPoints.Count > 1 && trails[i].trailPoints[trails[i].trailPoints.Count-1] != null && trails[i].CanRemoveTrail())
 					{
-						RemoveTrail(i);
-						i--;
-						if (i<0) i = 0;
-						continue;
+						if (!trails[i].IsQueuedForReuse())
+						{
+							_trailReuseQueue.Enqueue(i);
+							trails[i].QueueForReuse();
+						}
 					}
 				}
 			}
 
-			// Consume the particle birth queue
-			while (_birthQueue.Count>0)
-				AddTrail(_birthQueue.Dequeue());
-
 			// Update all trail meshes and their render settings
-			for (int i = 0; i<_trails.Count; i++)
+			for (int i = 0; i<trails.Count; i++)
 			{
-				ParticlePlaygroundTrail trail = _trails[i];
+				ParticlePlaygroundTrail trail = trails[i];
 				// Set shadow casting/receiving
 				trail.trailRenderer.receiveShadows = receiveShadows;
 				#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6
@@ -256,31 +281,41 @@ namespace ParticlePlayground {
 				#else
 				trail.trailRenderer.shadowCastingMode = shadowCastingMode;
 				#endif
-				if (_isDoneThread)
+				if (_isDoneThread && !trail.IsQueuedForReuse())
 					trail.UpdateMesh();
 			}
+
+			// Check if there's any event listeners
+			_hasTrailPointEventListener = trailPointEvent!=null;
+
+			// Check that the calculation delegate is assigned
+			if (_trailsCalculationAction == null)
+				_trailsCalculationAction = CalculationDelegate;
+
+			_calculationStartTime = Application.isPlaying? Time.time : Time.realtimeSinceStartup;
+
 			// Finally calculate all trails
 			if (multithreading)
 			{
 				if (_isDoneThread)
 				{
-					_calculationStartTime = Application.isPlaying? Time.time : Time.realtimeSinceStartup;
 					_isDoneThread = false;
-					PlaygroundC.RunAsync(()=>{
-						lock (_locker)
-						{
-							if (_isDoneThread) return;
-							CalculateTrail();
-							_isDoneThread = true;
-						}
-					});
+					PlaygroundC.RunAsync(_trailsCalculationAction);
 				}
 			} 
 			else 
 			{
-				_calculationStartTime = Application.isPlaying? Time.time : Time.realtimeSinceStartup;
-				CalculateTrail();
+				_isDoneThread = false;
+				_trailsCalculationAction();
 			}
+		}
+
+		void CalculationDelegate ()
+		{
+			if (_isDoneThread) 
+				return;
+			CalculateTrail();
+			_isDoneThread = true;
 		}
 
 		// Prevent build-up of the birth queue while Editor is out of focus
@@ -317,12 +352,12 @@ namespace ParticlePlayground {
 			{
 				if (createLastPointOnParticleDeath)
 				{
-					_trails[trailIndex].SetLastPoint(particle.position, particle.velocity, EvaluateWidth(0), time, _calculationStartTime);
+					trails[trailIndex].SetLastPoint(particle.position, particle.velocity, EvaluateWidth(0), time, _calculationStartTime);
 				}
 				else
 				{
-					_trails[trailIndex].SetParticlePosition(particle.position);
-					_trails[trailIndex].Die();
+					trails[trailIndex].SetParticlePosition(particle.position);
+					trails[trailIndex].Die();
 				}
 			}
 		}
@@ -337,7 +372,7 @@ namespace ParticlePlayground {
 				int trailIndex = GetNewestTrailWithParticleId (particle.particleId);
 				if (trailIndex < 0)
 					return;
-				ParticlePlaygroundTrail trailAtIndex = _trails[trailIndex];
+				ParticlePlaygroundTrail trailAtIndex = trails[trailIndex];
 				trailAtIndex.AddPoint (playgroundSystem.particleCache[particle.particleId].position, EvaluateWidth(0), time, _calculationStartTime);
 			}
 		}
@@ -456,9 +491,9 @@ namespace ParticlePlayground {
 		/// </summary>
 		/// <param name="material">The material all trails should get.</param>
 		public void SetMaterial (Material material) {
-			for (int i = 0; i<_trails.Count; i++) {
-				if (_trails[i] != null && _trails[i].trailRenderer != null)
-					_trails[i].trailRenderer.sharedMaterial = material;
+			for (int i = 0; i<trails.Count; i++) {
+				if (trails[i] != null && trails[i].trailRenderer != null)
+					trails[i].trailRenderer.sharedMaterial = material;
 			}
 			_materialCache = material;
 		}
@@ -480,7 +515,7 @@ namespace ParticlePlayground {
 
 		public Color32 EvaluateColor (int trailIndex, int trailPointIndex)
 		{
-			return lifetimeColor.Evaluate((trailPointIndex*1f) / (_trails[trailIndex].GetBirthIterator()-1));
+			return lifetimeColor.Evaluate((trailPointIndex*1f) / (trails[trailIndex].GetBirthIterator()-1));
 		}
 
 
@@ -488,11 +523,38 @@ namespace ParticlePlayground {
 			Trail functions
 		 ****************************************************************************/
 
+		public void ReuseTrail (int trailIndex, TrailParticleInfo particleInfo)
+		{
+			trails[trailIndex].DequeueForReuse();
+			trails[trailIndex].particleId = particleInfo.particleId;
+			trails[trailIndex].ClearTrail();
+
+			if (createFirstPointOnParticleBirth)
+			{
+				float w = EvaluateWidth(0);
+				trails[trailIndex].SetFirstPoint(particleInfo.position, particleInfo.velocity, w, time, _calculationStartTime);
+				
+				// Send trail point event to listeners
+				if (_hasTrailPointEventListener)
+				{
+					_eventTrailPoint.Update (
+						trails.Count, 
+						0, 
+						particleInfo.position,
+						w,
+						time,
+						_calculationStartTime
+						);
+					trailPointEvent(_eventTrailPoint);
+				}
+			}
+		}
+
 		/// <summary>
 		/// Creates a trail and assigns it to a particle.
 		/// </summary>
 		/// <param name="particleInfo">Information about the particle.</param>
-		public void AddTrail (TrailParticleInfo particleInfo)
+		public void CreateTrail (TrailParticleInfo particleInfo)
 		{
 			// Check parent object
 			if (_parentGameObject == null)
@@ -503,7 +565,9 @@ namespace ParticlePlayground {
 			}
 
 			ParticlePlaygroundTrail newTrail = new ParticlePlaygroundTrail(maxPoints);
-			newTrail.trailGameObject = new GameObject("Playground Trail "+particleInfo.particleId);
+			newTrail.trailGameObject = new GameObject("Playground Trail "+trails.Count);
+			layer = Mathf.Clamp(layer, 0, 32);
+			newTrail.trailGameObject.layer = layer;
 			newTrail.trailTransform = newTrail.trailGameObject.transform;
 			newTrail.trailTransform.parent = _parentTransform;
 			newTrail.trailRenderer = newTrail.trailGameObject.AddComponent<MeshRenderer>();
@@ -516,9 +580,26 @@ namespace ParticlePlayground {
 			newTrail.particleId = particleInfo.particleId;
 
 			if (createFirstPointOnParticleBirth)
-				newTrail.SetFirstPoint(particleInfo.position, particleInfo.velocity, EvaluateWidth(0), time, _calculationStartTime);
+			{
+				float w = EvaluateWidth(0);
+				newTrail.SetFirstPoint(particleInfo.position, particleInfo.velocity, w, time, _calculationStartTime);
 
-			_trails.Add (newTrail);
+				// Send trail point event to listeners
+				if (_hasTrailPointEventListener)
+				{
+					_eventTrailPoint.Update (
+						trails.Count, 
+						0, 
+						particleInfo.position,
+						w,
+						time,
+						_calculationStartTime
+					);
+					trailPointEvent(_eventTrailPoint);
+				}
+			}
+
+			trails.Add (newTrail);
 		}
 
 		/// <summary>
@@ -528,8 +609,8 @@ namespace ParticlePlayground {
 		/// <param name="particleId">Particle identifier.</param>
 		public int GetOldestTrailWithParticleId (int particleId)
 		{
-			for (int i = 0; i<_trails.Count; i++)
-				if (_trails[i].particleId == particleId && !_trails[i].IsDead())
+			for (int i = 0; i<trails.Count; i++)
+				if (trails[i].particleId == particleId && !trails[i].IsDead())
 					return i;
 			return -1;
 		}
@@ -541,8 +622,8 @@ namespace ParticlePlayground {
 		/// <param name="particleId">Particle identifier.</param>
 		public int GetNewestTrailWithParticleId (int particleId)
 		{
-			for (int i = _trails.Count-1; i>=0; --i)
-				if (_trails[i].particleId == particleId && !_trails[i].IsDead())
+			for (int i = trails.Count-1; i>=0; --i)
+				if (trails[i].particleId == particleId && !trails[i].IsDead())
 					return i;
 			return -1;
 		}
@@ -575,7 +656,7 @@ namespace ParticlePlayground {
 			{
 				return;
 			}
-			_trails[trailNumber].Die();
+			trails[trailNumber].Die();
 		}
 
 		/// <summary>
@@ -606,23 +687,30 @@ namespace ParticlePlayground {
 				_currentParticleCount = playgroundSystem.particleCount;
 				_currentParticleMinLifetime = playgroundSystem.lifetimeMin;
 				_currentParticleMaxLifetime = playgroundSystem.lifetime;
+				_currentLoopValue = playgroundSystem.loop;
+
+				#if UNITY_5_5_OR_NEWER
+				ParticleSystem.MainModule mainModule = playgroundSystem.shurikenParticleSystem.main;
+				_localSpace = mainModule.simulationSpace == ParticleSystemSimulationSpace.Local;
+				#else
 				_localSpace = playgroundSystem.shurikenParticleSystem.simulationSpace == ParticleSystemSimulationSpace.Local;
+				#endif
 			}
 
 			_isDoneThread = true;
 		}
 
 		/// <summary>
-		/// Removes the trail at index.
+		/// Destroys the trail at index.
 		/// </summary>
 		/// <param name="index">The trail index.</param>
-		public void RemoveTrail (int index) {
+		public void DestroyTrail (int index) {
 			if (Application.isPlaying)
-				Destroy(_trails[index].trailGameObject);
+				Destroy(trails[index].trailGameObject);
 			else
-				DestroyImmediate(_trails[index].trailGameObject);
+				DestroyImmediate(trails[index].trailGameObject);
 
-			_trails.RemoveAt(index);
+			trails.RemoveAt(index);
 		}
 
 		/// <summary>
@@ -630,7 +718,7 @@ namespace ParticlePlayground {
 		/// </summary>
 		public void DestroyAllTrails () {
 
-			foreach (ParticlePlaygroundTrail trail in _trails)
+			foreach (ParticlePlaygroundTrail trail in trails)
 			{
 				if (Application.isPlaying)
 					Destroy(trail.trailGameObject);
@@ -646,7 +734,7 @@ namespace ParticlePlayground {
 					DestroyImmediate(_parentGameObject);
 			}
 
-			_trails.Clear();
+			trails.Clear();
 			_birthQueue.Clear();
 		}
 
@@ -658,9 +746,9 @@ namespace ParticlePlayground {
 		void CalculateTrail ()
 		{
 			// Iterate through all trails
-			for (int i = 0; i<_trails.Count; i++)
+			for (int i = 0; i<trails.Count; i++)
 			{
-				ParticlePlaygroundTrail trail = _trails[i];
+				ParticlePlaygroundTrail trail = trails[i];
 
 				// Skip this trail if it's prepared to be removed
 				if (trail.CanRemoveTrail())
@@ -675,7 +763,25 @@ namespace ParticlePlayground {
 						if (pointDistance>minVertexDistance) {
 							float pathDeviationAngle = trail.GetPathDeviation();
 							if (pointDistance>maxVertexDistance || pathDeviationAngle>maxPathDeviation) {
-								trail.AddPoint(playgroundSystem.particleCache[trail.particleId].position, EvaluateWidth(0), time, _calculationStartTime);
+
+								Vector3 pos = playgroundSystem.particleCache[trail.particleId].position;
+								float w = EvaluateWidth(0);
+
+								trail.AddPoint(pos, w, time, _calculationStartTime);
+
+								// Send trail point event to listeners
+								if (_hasTrailPointEventListener)
+								{
+									_eventTrailPoint.Update (
+										i, 
+										trail.GetBirthIterator()-1, 
+										pos,
+										w,
+										time,
+										_calculationStartTime
+									);
+									trailPointEvent(_eventTrailPoint);
+								}
 							}
 						}
 					}
@@ -693,14 +799,6 @@ namespace ParticlePlayground {
 				for (int x = 0; x<trail.trailPoints.Count; x++)
 				{
 					TrailPoint trailPoint = trail.trailPoints[x];
-
-					if (trailPoint.CanRemove())
-					{
-						trail.RemovePoint(x);
-
-						if (!_localSpace)
-							continue;
-					}
 
 					float normalizedLifetime = trailPoint.GetNormalizedLifetime();
 

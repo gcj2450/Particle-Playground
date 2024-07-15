@@ -6,6 +6,8 @@ using System.Collections.Generic;
 namespace ParticlePlayground {
 	public class TrailPoint 
 	{
+		public static float trailPointRemoveTime = 0f;
+
 		public Vector3 position;
 		public Vector3 velocity;
 		public float lifetime;
@@ -49,10 +51,9 @@ namespace ParticlePlayground {
 		public void Update (float updateTime, float width)
 		{
 			lifetime -= updateTime-_lastTimeUpdated;
-			if (lifetime <= 0)
+			if (lifetime <= -trailPointRemoveTime)
 			{
 				_canRemove = true;
-				lifetime = 0;
 			}
 			this.width = width;
 			_lastTimeUpdated = updateTime;

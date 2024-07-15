@@ -163,6 +163,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 	public static GUIStyle boxStyle;
 	public static PlaygroundSettingsC playgroundSettings;
 	public static PlaygroundLanguageC playgroundLanguage;
+	public static float screenDPI;
 	
 	public static bool currentWireframe;
 	private Keyframe[] prevLifetimeSortingKeys;
@@ -197,7 +198,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 	public static SerializedProperty sortingMode;
 	public static SerializedProperty sortingFudge;
 	public SortMode sortMode;
-	
+
+	public static bool canHaveSeparateRotationAxes;
+
+	float guiDpiScale;
+
 	void OnEnable () {
 		
 		lastActiveTool = UnityEditor.Tools.current;
@@ -208,14 +213,23 @@ class PlaygroundParticleSystemInspectorC : Editor {
 		
 		// Load language
 		playgroundLanguage = PlaygroundSettingsC.GetLanguage();
-		
+
+		// Set gui values
+		screenDPI = playgroundSettings.GetScreenDPI();
+		guiDpiScale = screenDPI / 72f;
+
 		// Playground Particles
 		playgroundParticlesScriptReference = target as PlaygroundParticlesC;
 		if (playgroundParticlesScriptReference==null) return;
 		playgroundParticles = new SerializedObject(playgroundParticlesScriptReference);
 		
 		shurikenRenderer = playgroundParticlesScriptReference.particleSystemGameObject.GetComponent<ParticleSystem>().GetComponent<Renderer>() as ParticleSystemRenderer;
-		
+
+		canHaveSeparateRotationAxes = false;
+		#if UNITY_5_5_OR_NEWER
+		canHaveSeparateRotationAxes = true;
+		#endif
+
 		// Sorting layers
 		Type internalEditorUtilityType = typeof(InternalEditorUtility);
 		PropertyInfo sortingLayersProperty = internalEditorUtilityType.GetProperty("sortingLayerNames", BindingFlags.Static | BindingFlags.NonPublic);
@@ -476,7 +490,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 		if (Selection.activeTransform==null) return;
 		
 		// Wireframes in Scene View
+		#if UNITY_5_5_OR_NEWER
+		EditorUtility.SetSelectedRenderState(playgroundParticlesScriptReference.particleSystemRenderer, PlaygroundC.reference.drawWireframe? EditorSelectedRenderState.Wireframe : EditorSelectedRenderState.Hidden);
+		#else
 		EditorUtility.SetSelectedWireframeHidden(playgroundParticlesScriptReference.particleSystemRenderer, !PlaygroundC.reference.drawWireframe);
+		#endif
 		currentWireframe = PlaygroundC.reference.drawWireframe;
 	}
 	
@@ -575,14 +593,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 		if (PlaygroundInspectorC.boxStyle==null)
 			PlaygroundInspectorC.boxStyle = GUI.skin.FindStyle("box");
 		isEditingInHierarchy = Selection.activeTransform!=null;
-		/*
-		if (isEditingInHierarchy) {
-			EditorGUILayout.LabelField(playgroundLanguage.editFromHierarchyOnly);
-			return;
-		}
-		*/
-		
-		
+
 		if (Event.current.type == EventType.ValidateCommand &&
 		    Event.current.commandName == "UndoRedoPerformed") {			
 			LifetimeSorting();
@@ -616,7 +627,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 				playgroundParticlesScriptReference.particleSystemTransform.localScale = new Vector3(1f,1f,1f);
 			EditorGUILayout.EndVertical();
 		}
-		
+
 		// Particles
 		EditorGUILayout.BeginVertical(boxStyle);
 		if (playgroundParticlesScriptReference.eventControlledBy.Count>0)
@@ -1021,7 +1032,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float minDepth = playgroundParticlesScriptReference.paint.minDepth;
 						float maxDepth = playgroundParticlesScriptReference.paint.maxDepth;
-						EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.paint.minDepth = Mathf.Clamp (minDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 						playgroundParticlesScriptReference.paint.maxDepth = Mathf.Clamp (maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 						playgroundParticlesScriptReference.paint.minDepth = EditorGUILayout.FloatField(playgroundParticlesScriptReference.paint.minDepth, GUILayout.Width(50));
@@ -1040,7 +1051,13 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					if (isEditingInHierarchy) {
 						GUILayout.BeginHorizontal();
 						EditorGUILayout.PrefixLabel(playgroundLanguage.paint+":");
-						ProgressBar((playgroundParticlesScriptReference.paint.positionLength*1f)/PlaygroundC.reference.paintMaxPositions, playgroundParticlesScriptReference.paint.positionLength+"/"+PlaygroundC.reference.paintMaxPositions, Mathf.FloorToInt(Screen.width/2.2f)-65);
+
+						#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+						ProgressBar((playgroundParticlesScriptReference.paint.positionLength*1f)/PlaygroundC.reference.paintMaxPositions, playgroundParticlesScriptReference.paint.positionLength+"/"+PlaygroundC.reference.paintMaxPositions, Mathf.FloorToInt((Screen.width/guiDpiScale)/2) -120);
+						#else
+						ProgressBar((playgroundParticlesScriptReference.paint.positionLength*1f)/PlaygroundC.reference.paintMaxPositions, playgroundParticlesScriptReference.paint.positionLength+"/"+PlaygroundC.reference.paintMaxPositions, Mathf.FloorToInt((Screen.width/guiDpiScale)/2.5f) -120);
+						#endif
+
 						EditorGUILayout.Separator();
 						if(GUILayout.Button(playgroundLanguage.setParticleCount, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false)) && isEditingInHierarchy){
 							playgroundParticlesScriptReference.particleCount = playgroundParticlesScriptReference.paint.positionLength;
@@ -1238,11 +1255,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					// X
 					GUILayout.BeginHorizontal();
 					GUILayout.Space(16);
-					GUILayout.Label(playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range, GUILayout.Width(50));
+					GUILayout.Label(playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range);
 					EditorGUILayout.Separator();
 					float sourceScatterMinX = playgroundParticlesScriptReference.sourceScatterMin.x;
 					float sourceScatterMaxX = playgroundParticlesScriptReference.sourceScatterMax.x;
-					EditorGUILayout.MinMaxSlider(ref sourceScatterMinX, ref sourceScatterMaxX, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+					EditorGUILayout.MinMaxSlider(ref sourceScatterMinX, ref sourceScatterMaxX, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.sourceScatterMin.x = Mathf.Clamp (sourceScatterMinX, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 					playgroundParticlesScriptReference.sourceScatterMax.x = Mathf.Clamp (sourceScatterMaxX, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 					playgroundParticlesScriptReference.sourceScatterMin.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.sourceScatterMin.x, GUILayout.Width(50));
@@ -1257,7 +1274,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float sourceScatterMinY = playgroundParticlesScriptReference.sourceScatterMin.y;
 						float sourceScatterMaxY = playgroundParticlesScriptReference.sourceScatterMax.y;
-						EditorGUILayout.MinMaxSlider(ref sourceScatterMinY, ref sourceScatterMaxY, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref sourceScatterMinY, ref sourceScatterMaxY, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.sourceScatterMin.y = Mathf.Clamp (sourceScatterMinY, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 						playgroundParticlesScriptReference.sourceScatterMax.y = Mathf.Clamp (sourceScatterMaxY, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 						playgroundParticlesScriptReference.sourceScatterMin.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.sourceScatterMin.y, GUILayout.Width(50));
@@ -1270,7 +1287,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float sourceScatterMinZ = playgroundParticlesScriptReference.sourceScatterMin.z;
 						float sourceScatterMaxZ = playgroundParticlesScriptReference.sourceScatterMax.z;
-						EditorGUILayout.MinMaxSlider(ref sourceScatterMinZ, ref sourceScatterMaxZ, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref sourceScatterMinZ, ref sourceScatterMaxZ, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.sourceScatterMin.z = Mathf.Clamp (sourceScatterMinZ, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 						playgroundParticlesScriptReference.sourceScatterMax.z = Mathf.Clamp (sourceScatterMaxZ, -playgroundSettings.maximumAllowedSourceScatter, playgroundSettings.maximumAllowedSourceScatter);
 						playgroundParticlesScriptReference.sourceScatterMin.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.sourceScatterMin.z, GUILayout.Width(50));
@@ -1280,14 +1297,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUI.indentLevel++;
 					playgroundParticlesScriptReference.scatterScale = EditorGUILayout.Vector3Field (playgroundLanguage.scale, playgroundParticlesScriptReference.scatterScale);
 					EditorGUI.indentLevel--;
-					/*
-					if (playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.SphericalSector || playgroundParticlesScriptReference.sourceScatterMethod==MINMAXVECTOR3METHOD.SphericalSectorLinear) {
-						EditorGUI.indentLevel++;
-						playgroundParticlesScriptReference.sourceScatterMin.y = EditorGUILayout.Slider(playgroundLanguage.sectorA, playgroundParticlesScriptReference.sourceScatterMin.y, -1f, 1f);
-						playgroundParticlesScriptReference.sourceScatterMax.y = EditorGUILayout.Slider(playgroundLanguage.sectorB, playgroundParticlesScriptReference.sourceScatterMax.y, 0, 1f);
-						EditorGUI.indentLevel--;
-					}
-					*/
+
 					GUI.enabled = true;
 					
 					if (prevScatterEnabled!=playgroundParticlesScriptReference.applySourceScatter || prevScatterMin!=playgroundParticlesScriptReference.sourceScatterMin || prevScatterMax!=playgroundParticlesScriptReference.sourceScatterMax || prevScatterMethod!=playgroundParticlesScriptReference.sourceScatterMethod) {
@@ -1312,9 +1322,6 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUI.indentLevel++;
 					playgroundParticlesScriptReference.loop = EditorGUILayout.Toggle(playgroundLanguage.loop, playgroundParticlesScriptReference.loop);
 					if (prevEmit!=playgroundParticlesScriptReference.emit || prevLoop!=playgroundParticlesScriptReference.loop&&playgroundParticlesScriptReference.loop && !playgroundParticlesScriptReference.IsPrewarming()) {
-						//playgroundParticlesScriptReference.simulationStarted = PlaygroundC.globalTime;
-						//playgroundParticlesScriptReference.loopExceeded = false;
-						//playgroundParticlesScriptReference.loopExceededOnParticle = -1;
 						playgroundParticlesScriptReference.particleSystemGameObject.SetActive(true);
 					}
 					GUI.enabled = !loop.boolValue;
@@ -1323,7 +1330,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUILayout.BeginHorizontal();
 					disableOnDone.boolValue = EditorGUILayout.Toggle(playgroundLanguage.disableOnDone, disableOnDone.boolValue, GUILayout.ExpandWidth(false));
 					GUI.enabled = GUI.enabled&&disableOnDone.boolValue;
-					EditorGUILayout.PropertyField(disableOnDoneRoutine, new GUIContent(""), GUILayout.ExpandWidth(true));
+					EditorGUILayout.PropertyField(disableOnDoneRoutine, new GUIContent(""), new GUILayoutOption[]{GUILayout.MaxWidth(130)});
 					EditorGUILayout.EndHorizontal();
 					EditorGUI.indentLevel--;
 					
@@ -1348,7 +1355,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUILayout.Separator();
 					float sizeMin = playgroundParticlesScriptReference.sizeMin;
 					float sizeMax = playgroundParticlesScriptReference.sizeMax;
-					EditorGUILayout.MinMaxSlider(ref sizeMin, ref sizeMax, 0, playgroundSettings.maximumAllowedSize, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+					EditorGUILayout.MinMaxSlider(ref sizeMin, ref sizeMax, 0, playgroundSettings.maximumAllowedSize, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.sizeMin = Mathf.Clamp(sizeMin, 0, playgroundSettings.maximumAllowedSize);
 					playgroundParticlesScriptReference.sizeMax = Mathf.Clamp(sizeMax, 0, playgroundSettings.maximumAllowedSize);
 					playgroundParticlesScriptReference.sizeMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.sizeMin, GUILayout.Width(50));
@@ -1361,7 +1368,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					playgroundParticlesScriptReference.applyLifetimeSize = EditorGUILayout.ToggleLeft (playgroundLanguage.lifetimeSize, playgroundParticlesScriptReference.applyLifetimeSize, GUILayout.Width (120));
 					GUILayout.FlexibleSpace();
 					GUI.enabled = playgroundParticlesScriptReference.applyLifetimeSize;
-					lifetimeSize.animationCurveValue = EditorGUILayout.CurveField(lifetimeSize.animationCurveValue, GUILayout.Width (Mathf.CeilToInt(Screen.width/1.805f)));
+					lifetimeSize.animationCurveValue = EditorGUILayout.CurveField(lifetimeSize.animationCurveValue, new GUILayoutOption[0]);
 					GUI.enabled = true;
 					EditorGUILayout.EndHorizontal();
 					
@@ -1369,7 +1376,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					playgroundParticlesScriptReference.applyParticleArraySize = EditorGUILayout.ToggleLeft (playgroundLanguage.arraySize, playgroundParticlesScriptReference.applyParticleArraySize, GUILayout.Width (120));
 					GUILayout.FlexibleSpace();
 					GUI.enabled = playgroundParticlesScriptReference.applyParticleArraySize;
-					arraySize.animationCurveValue = EditorGUILayout.CurveField(arraySize.animationCurveValue, GUILayout.Width (Mathf.CeilToInt(Screen.width/1.805f)));
+					arraySize.animationCurveValue = EditorGUILayout.CurveField(arraySize.animationCurveValue, new GUILayoutOption[0]);
 					GUI.enabled = true;
 					EditorGUILayout.EndHorizontal();
 				}
@@ -1377,48 +1384,164 @@ class PlaygroundParticleSystemInspectorC : Editor {
 				
 				// Rotation
 				GUILayout.BeginVertical(boxStyle);
-				bool hasRotation = playgroundParticlesScriptReference.initialRotationMin!=0||playgroundParticlesScriptReference.initialRotationMax!=0||playgroundParticlesScriptReference.rotationSpeedMin!=0||playgroundParticlesScriptReference.rotationSpeedMax!=0||playgroundParticlesScriptReference.rotateTowardsDirection;
+
+				if (!canHaveSeparateRotationAxes)
+					playgroundParticlesScriptReference.separateRotationAxes = false;
+				bool hasRotation = !playgroundParticlesScriptReference.separateRotationAxes && (playgroundParticlesScriptReference.initialRotationMin!=0||playgroundParticlesScriptReference.initialRotationMax!=0||playgroundParticlesScriptReference.rotationSpeedMin!=0||playgroundParticlesScriptReference.rotationSpeedMax!=0||playgroundParticlesScriptReference.rotateTowardsDirection) ||
+									playgroundParticlesScriptReference.separateRotationAxes && (playgroundParticlesScriptReference.initialRotationMin3d!=Vector3.zero||playgroundParticlesScriptReference.initialRotationMax3d!=Vector3.zero||playgroundParticlesScriptReference.rotationSpeedMin3d!=Vector3.zero||playgroundParticlesScriptReference.rotationSpeedMax3d!=Vector3.zero);
+
 				GUILayout.BeginHorizontal();
 				playgroundSettings.particleSettingsRotationFoldout = GUILayout.Toggle(playgroundSettings.particleSettingsRotationFoldout, playgroundLanguage.rotation, EditorStyles.foldout);
-				GUILayout.Label ((hasRotation?playgroundLanguage.on:playgroundLanguage.off), EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
+				GUILayout.Label ((hasRotation?(playgroundParticlesScriptReference.separateRotationAxes?playgroundLanguage.threeDimensional:playgroundLanguage.twoDimensional):playgroundLanguage.off), EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
 				GUILayout.EndHorizontal();
 				if (playgroundSettings.particleSettingsRotationFoldout) {
-					GUILayout.BeginHorizontal();
-					GUILayout.Label(playgroundLanguage.initialRotation);
-					EditorGUILayout.Separator();
-					float initialRotationMin = playgroundParticlesScriptReference.initialRotationMin;
-					float initialRotationMax = playgroundParticlesScriptReference.initialRotationMax;
-					EditorGUILayout.MinMaxSlider(ref initialRotationMin, ref initialRotationMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
-					playgroundParticlesScriptReference.initialRotationMin = Mathf.Clamp (initialRotationMin, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
-					playgroundParticlesScriptReference.initialRotationMax = Mathf.Clamp (initialRotationMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
-					playgroundParticlesScriptReference.initialRotationMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMin, GUILayout.Width(50));
-					playgroundParticlesScriptReference.initialRotationMax = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMax, GUILayout.Width(50));
-					GUILayout.EndHorizontal();
-					
-					GUI.enabled = !playgroundParticlesScriptReference.rotateTowardsDirection;
-					GUILayout.BeginHorizontal();
-					GUILayout.Label(playgroundLanguage.rotation);
-					EditorGUILayout.Separator();
-					float rotationSpeedMin = playgroundParticlesScriptReference.rotationSpeedMin;
-					float rotationSpeedMax = playgroundParticlesScriptReference.rotationSpeedMax;
-					EditorGUILayout.MinMaxSlider(ref rotationSpeedMin, ref rotationSpeedMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
-					playgroundParticlesScriptReference.rotationSpeedMin = Mathf.Clamp (rotationSpeedMin, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
-					playgroundParticlesScriptReference.rotationSpeedMax = Mathf.Clamp (rotationSpeedMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
-					playgroundParticlesScriptReference.rotationSpeedMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMin, GUILayout.Width(50));
-					playgroundParticlesScriptReference.rotationSpeedMax = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMax, GUILayout.Width(50));
-					GUILayout.EndHorizontal();
-					GUI.enabled = true;
-					
-					playgroundParticlesScriptReference.rotateTowardsDirection = EditorGUILayout.Toggle(playgroundLanguage.rotateTowardsDirection, playgroundParticlesScriptReference.rotateTowardsDirection);
-					GUI.enabled = playgroundParticlesScriptReference.rotateTowardsDirection;
-					EditorGUI.indentLevel++;
-					playgroundParticlesScriptReference.rotationNormal = EditorGUILayout.Vector3Field(playgroundLanguage.rotationNormal, playgroundParticlesScriptReference.rotationNormal);
-					playgroundParticlesScriptReference.rotationNormal.x = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.x, -1, 1);
-					playgroundParticlesScriptReference.rotationNormal.y = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.y, -1, 1);
-					playgroundParticlesScriptReference.rotationNormal.z = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.z, -1, 1);
-					EditorGUI.indentLevel--;
-					
-					GUI.enabled = true;
+
+					if (canHaveSeparateRotationAxes)
+						playgroundParticlesScriptReference.separateRotationAxes = EditorGUILayout.Toggle(playgroundLanguage.separateRotationAxes, playgroundParticlesScriptReference.separateRotationAxes);
+
+					if (playgroundParticlesScriptReference.separateRotationAxes) {
+						// Initial 3d rotation
+						GUILayout.BeginHorizontal();
+						GUILayout.Label(playgroundLanguage.initialRotation);
+						GUI.enabled = playgroundParticlesScriptReference.initialRotationMin3d != Vector3.zero ||
+							playgroundParticlesScriptReference.initialRotationMax3d != Vector3.zero;
+						if (GUILayout.Button (playgroundLanguage.reset, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))) {
+							playgroundParticlesScriptReference.initialRotationMin3d = Vector3.zero;
+							playgroundParticlesScriptReference.initialRotationMax3d = Vector3.zero;
+						}
+						GUI.enabled = true;
+						GUILayout.EndHorizontal();
+
+						// Initial rotation X
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("X");
+						float initialRotationMinX = playgroundParticlesScriptReference.initialRotationMin3d.x;
+						float initialRotationMaxX = playgroundParticlesScriptReference.initialRotationMax3d.x;
+						EditorGUILayout.MinMaxSlider(ref initialRotationMinX, ref initialRotationMaxX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.initialRotationMin3d.x = Mathf.Clamp (initialRotationMinX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMax3d.x = Mathf.Clamp (initialRotationMaxX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMin3d.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMin3d.x, GUILayout.Width(50));
+						playgroundParticlesScriptReference.initialRotationMax3d.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMax3d.x, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+						// Initial rotation Y
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("Y");
+						float initialRotationMinY = playgroundParticlesScriptReference.initialRotationMin3d.y;
+						float initialRotationMaxY = playgroundParticlesScriptReference.initialRotationMax3d.y;
+						EditorGUILayout.MinMaxSlider(ref initialRotationMinY, ref initialRotationMaxY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.initialRotationMin3d.y = Mathf.Clamp (initialRotationMinY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMax3d.y = Mathf.Clamp (initialRotationMaxY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMin3d.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMin3d.y, GUILayout.Width(50));
+						playgroundParticlesScriptReference.initialRotationMax3d.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMax3d.y, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+						// Initial rotation Z
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("Z");
+						float initialRotationMinZ = playgroundParticlesScriptReference.initialRotationMin3d.z;
+						float initialRotationMaxZ = playgroundParticlesScriptReference.initialRotationMax3d.z;
+						EditorGUILayout.MinMaxSlider(ref initialRotationMinZ, ref initialRotationMaxZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.initialRotationMin3d.z = Mathf.Clamp (initialRotationMinZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMax3d.z = Mathf.Clamp (initialRotationMaxZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMin3d.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMin3d.z, GUILayout.Width(50));
+						playgroundParticlesScriptReference.initialRotationMax3d.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMax3d.z, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+						// 3d rotation
+						GUILayout.BeginHorizontal();
+						GUILayout.Label(playgroundLanguage.rotation);
+						GUI.enabled = playgroundParticlesScriptReference.rotationSpeedMin3d != Vector3.zero ||
+							playgroundParticlesScriptReference.rotationSpeedMax3d != Vector3.zero;
+						if (GUILayout.Button (playgroundLanguage.reset, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))) {
+							playgroundParticlesScriptReference.rotationSpeedMin3d = Vector3.zero;
+							playgroundParticlesScriptReference.rotationSpeedMax3d = Vector3.zero;
+						}
+						GUI.enabled = true;
+						GUILayout.EndHorizontal();
+
+						// Rotation X
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("X");
+						float rotationMinX = playgroundParticlesScriptReference.rotationSpeedMin3d.x;
+						float rotationMaxX = playgroundParticlesScriptReference.rotationSpeedMax3d.x;
+						EditorGUILayout.MinMaxSlider(ref rotationMinX, ref rotationMaxX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.rotationSpeedMin3d.x = Mathf.Clamp (rotationMinX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMax3d.x = Mathf.Clamp (rotationMaxX, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMin3d.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMin3d.x, GUILayout.Width(50));
+						playgroundParticlesScriptReference.rotationSpeedMax3d.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMax3d.x, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+						// Rotation Y
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("Y");
+						float rotationMinY = playgroundParticlesScriptReference.rotationSpeedMin3d.y;
+						float rotationMaxY = playgroundParticlesScriptReference.rotationSpeedMax3d.y;
+						EditorGUILayout.MinMaxSlider(ref rotationMinY, ref rotationMaxY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.rotationSpeedMin3d.y = Mathf.Clamp (rotationMinY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMax3d.y = Mathf.Clamp (rotationMaxY, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMin3d.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMin3d.y, GUILayout.Width(50));
+						playgroundParticlesScriptReference.rotationSpeedMax3d.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMax3d.y, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+						// Rotation Z
+						GUILayout.BeginHorizontal();
+						GUILayout.Space(16);
+						GUILayout.Label("Z");
+						float rotationMinZ = playgroundParticlesScriptReference.rotationSpeedMin3d.z;
+						float rotationMaxZ = playgroundParticlesScriptReference.rotationSpeedMax3d.z;
+						EditorGUILayout.MinMaxSlider(ref rotationMinZ, ref rotationMaxZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.rotationSpeedMin3d.z = Mathf.Clamp (rotationMinZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMax3d.z = Mathf.Clamp (rotationMaxZ, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMin3d.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMin3d.z, GUILayout.Width(50));
+						playgroundParticlesScriptReference.rotationSpeedMax3d.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMax3d.z, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+
+					} else {
+						
+						// 2D rotation
+						GUILayout.BeginHorizontal();
+						GUILayout.Label(playgroundLanguage.initialRotation);
+						EditorGUILayout.Separator();
+						float initialRotationMin = playgroundParticlesScriptReference.initialRotationMin;
+						float initialRotationMax = playgroundParticlesScriptReference.initialRotationMax;
+						EditorGUILayout.MinMaxSlider(ref initialRotationMin, ref initialRotationMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.initialRotationMin = Mathf.Clamp (initialRotationMin, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMax = Mathf.Clamp (initialRotationMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.initialRotationMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMin, GUILayout.Width(50));
+						playgroundParticlesScriptReference.initialRotationMax = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialRotationMax, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+						
+						GUI.enabled = !playgroundParticlesScriptReference.rotateTowardsDirection;
+						GUILayout.BeginHorizontal();
+						GUILayout.Label(playgroundLanguage.rotation);
+						EditorGUILayout.Separator();
+						float rotationSpeedMin = playgroundParticlesScriptReference.rotationSpeedMin;
+						float rotationSpeedMax = playgroundParticlesScriptReference.rotationSpeedMax;
+						EditorGUILayout.MinMaxSlider(ref rotationSpeedMin, ref rotationSpeedMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation, GUILayout.ExpandWidth(false));
+						playgroundParticlesScriptReference.rotationSpeedMin = Mathf.Clamp (rotationSpeedMin, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMax = Mathf.Clamp (rotationSpeedMax, -playgroundSettings.maximumAllowedRotation, playgroundSettings.maximumAllowedRotation);
+						playgroundParticlesScriptReference.rotationSpeedMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMin, GUILayout.Width(50));
+						playgroundParticlesScriptReference.rotationSpeedMax = EditorGUILayout.FloatField(playgroundParticlesScriptReference.rotationSpeedMax, GUILayout.Width(50));
+						GUILayout.EndHorizontal();
+						GUI.enabled = true;
+						
+						playgroundParticlesScriptReference.rotateTowardsDirection = EditorGUILayout.Toggle(playgroundLanguage.rotateTowardsDirection, playgroundParticlesScriptReference.rotateTowardsDirection);
+						GUI.enabled = playgroundParticlesScriptReference.rotateTowardsDirection;
+						EditorGUI.indentLevel++;
+						playgroundParticlesScriptReference.rotationNormal = EditorGUILayout.Vector3Field(playgroundLanguage.rotationNormal, playgroundParticlesScriptReference.rotationNormal);
+						playgroundParticlesScriptReference.rotationNormal.x = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.x, -1, 1);
+						playgroundParticlesScriptReference.rotationNormal.y = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.y, -1, 1);
+						playgroundParticlesScriptReference.rotationNormal.z = Mathf.Clamp(playgroundParticlesScriptReference.rotationNormal.z, -1, 1);
+						EditorGUI.indentLevel--;
+						
+						GUI.enabled = true;
+					}
 				}
 				GUILayout.EndVertical();
 				
@@ -1437,7 +1560,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float lifetimeMin = playgroundParticlesScriptReference.lifetimeMin;
 						float lifetimeMax = playgroundParticlesScriptReference.lifetime;
-						EditorGUILayout.MinMaxSlider(ref lifetimeMin, ref lifetimeMax, 0, playgroundSettings.maximumAllowedLifetime, GUILayout.Width(Mathf.FloorToInt(Screen.width/1.8f)-125));
+						EditorGUILayout.MinMaxSlider(ref lifetimeMin, ref lifetimeMax, 0, playgroundSettings.maximumAllowedLifetime, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.lifetimeMin = Mathf.Clamp (lifetimeMin, 0, playgroundSettings.maximumAllowedLifetime);
 						playgroundParticlesScriptReference.lifetime = Mathf.Clamp (lifetimeMax, 0, playgroundSettings.maximumAllowedLifetime);
 						playgroundParticlesScriptReference.lifetimeMin = EditorGUILayout.FloatField(playgroundParticlesScriptReference.lifetimeMin, GUILayout.Width(50));
@@ -1597,7 +1720,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					playgroundParticlesScriptReference.applyLifetimePositioningPositionScale = EditorGUILayout.ToggleLeft (playgroundLanguage.positionScale, playgroundParticlesScriptReference.applyLifetimePositioningPositionScale, GUILayout.Width (Mathf.CeilToInt(Screen.width/4f)));
 					GUI.enabled = GUI.enabled&&playgroundParticlesScriptReference.applyLifetimePositioningPositionScale;
 					GUILayout.FlexibleSpace();
-					lifetimePositioningPositionScale.animationCurveValue = EditorGUILayout.CurveField(lifetimePositioningPositionScale.animationCurveValue, GUILayout.Width (Mathf.CeilToInt(Screen.width/1.805f)));
+					lifetimePositioningPositionScale.animationCurveValue = EditorGUILayout.CurveField(lifetimePositioningPositionScale.animationCurveValue);
 					GUI.enabled = (playgroundParticlesScriptReference.onlyLifetimePositioning&&!onlySourcePositioning.boolValue);
 					EditorGUILayout.EndHorizontal();
 					
@@ -1605,7 +1728,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					playgroundParticlesScriptReference.applyLifetimePositioningTimeScale = EditorGUILayout.ToggleLeft (playgroundLanguage.timeScale, playgroundParticlesScriptReference.applyLifetimePositioningTimeScale, GUILayout.Width (Mathf.CeilToInt(Screen.width/4f)));
 					GUI.enabled = GUI.enabled&&playgroundParticlesScriptReference.applyLifetimePositioningTimeScale;
 					GUILayout.FlexibleSpace();
-					lifetimePositioningTimeScale.animationCurveValue = EditorGUILayout.CurveField(lifetimePositioningTimeScale.animationCurveValue, GUILayout.Width (Mathf.CeilToInt(Screen.width/1.805f)));
+					lifetimePositioningTimeScale.animationCurveValue = EditorGUILayout.CurveField(lifetimePositioningTimeScale.animationCurveValue);
 					GUI.enabled = (playgroundParticlesScriptReference.onlyLifetimePositioning&&!onlySourcePositioning.boolValue);
 					EditorGUILayout.EndHorizontal();
 					
@@ -1627,11 +1750,15 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUI.indentLevel--;
 					
 					EditorGUILayout.Separator();
-					
+
+					playgroundParticlesScriptReference.maxVelocity = EditorGUILayout.Slider(playgroundLanguage.maxVelocity, playgroundParticlesScriptReference.maxVelocity, 0, playgroundSettings.maximumAllowedVelocity);
+
+					EditorGUILayout.Separator();
+
 					// Axis constraints
 					GUILayout.BeginHorizontal();
-					EditorGUILayout.LabelField(playgroundLanguage.axisConstraints, GUILayout.Width(Mathf.FloorToInt(Screen.width/2.2f)-46));
-					
+					EditorGUILayout.LabelField(playgroundLanguage.axisConstraints, GUILayout.MaxWidth(120));
+
 					GUILayout.Label("X", GUILayout.Width(10));
 					playgroundParticlesScriptReference.axisConstraints.x = EditorGUILayout.Toggle(playgroundParticlesScriptReference.axisConstraints.x, GUILayout.Width(16));
 					GUILayout.Label("Y", GUILayout.Width(10));
@@ -1639,7 +1766,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					GUILayout.Label("Z", GUILayout.Width(10));
 					playgroundParticlesScriptReference.axisConstraints.z = EditorGUILayout.Toggle(playgroundParticlesScriptReference.axisConstraints.z, GUILayout.Width(16));
 					GUILayout.EndHorizontal();
-					playgroundParticlesScriptReference.maxVelocity = EditorGUILayout.Slider(playgroundLanguage.maxVelocity, playgroundParticlesScriptReference.maxVelocity, 0, playgroundSettings.maximumAllowedVelocity);
+
 				}
 				EditorGUILayout.EndVertical();
 				
@@ -1660,8 +1787,6 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					} else GUI.enabled = (source.intValue!=4 && !onlySourcePositioning.boolValue&&!playgroundParticlesScriptReference.onlyLifetimePositioning);
 					playgroundParticlesScriptReference.calculateDeltaMovement = EditorGUILayout.ToggleLeft(playgroundLanguage.deltaMovement, playgroundParticlesScriptReference.calculateDeltaMovement);
 					GUI.enabled = (GUI.enabled && playgroundParticlesScriptReference.calculateDeltaMovement && !onlySourcePositioning.boolValue);
-					//EditorGUI.indentLevel++;
-					//deltaMovementStrength.floatValue = EditorGUILayout.Slider(playgroundLanguage.deltaMovementStrength, deltaMovementStrength.floatValue, 0, playgroundSettings.maximumAllowedDeltaMovementStrength);
 					EditorGUILayout.BeginHorizontal();
 					GUILayout.Space (16f);
 					if (playgroundParticlesScriptReference.deltaMovementStrengthValueMethod==VALUEMETHOD.Constant) {
@@ -1671,7 +1796,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float deltaMin = playgroundParticlesScriptReference.minDeltaMovementStrength;
 						float deltaMax = playgroundParticlesScriptReference.deltaMovementStrength;
-						EditorGUILayout.MinMaxSlider(ref deltaMin, ref deltaMax, 0, playgroundSettings.maximumAllowedDeltaMovementStrength, GUILayout.Width(Mathf.FloorToInt(Screen.width/1.8f)-125));
+						EditorGUILayout.MinMaxSlider(ref deltaMin, ref deltaMax, 0, playgroundSettings.maximumAllowedDeltaMovementStrength, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.minDeltaMovementStrength = Mathf.Clamp (deltaMin, 0, playgroundSettings.maximumAllowedDeltaMovementStrength);
 						playgroundParticlesScriptReference.deltaMovementStrength = Mathf.Clamp (deltaMax, 0, playgroundSettings.maximumAllowedDeltaMovementStrength);
 						playgroundParticlesScriptReference.minDeltaMovementStrength = EditorGUILayout.FloatField(playgroundParticlesScriptReference.minDeltaMovementStrength, GUILayout.Width(50));
@@ -1680,7 +1805,6 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					}
 					playgroundParticlesScriptReference.deltaMovementStrengthValueMethod = (VALUEMETHOD)EditorGUILayout.EnumPopup(playgroundParticlesScriptReference.deltaMovementStrengthValueMethod, EditorStyles.toolbarDropDown, GUILayout.MaxWidth (12));
 					EditorGUILayout.EndHorizontal();
-					//EditorGUI.indentLevel--;
 					GUI.enabled = !onlySourcePositioning.boolValue&&!playgroundParticlesScriptReference.onlyLifetimePositioning;
 					
 					// Initial Velocity
@@ -1699,11 +1823,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					// X
 					GUILayout.BeginHorizontal();
 					GUILayout.Space(16);
-					GUILayout.Label(playgroundParticlesScriptReference.initialVelocityMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.initialVelocityMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range, GUILayout.Width(50));
+					GUILayout.Label(playgroundParticlesScriptReference.initialVelocityMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.initialVelocityMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range);
 					EditorGUILayout.Separator();
 					float initialVelocityMinX = playgroundParticlesScriptReference.initialVelocityMin.x;
 					float initialVelocityMaxX = playgroundParticlesScriptReference.initialVelocityMax.x;
-					EditorGUILayout.MinMaxSlider(ref initialVelocityMinX, ref initialVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+					EditorGUILayout.MinMaxSlider(ref initialVelocityMinX, ref initialVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.initialVelocityMin.x = Mathf.Clamp (initialVelocityMinX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 					playgroundParticlesScriptReference.initialVelocityMax.x = Mathf.Clamp (initialVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 					playgroundParticlesScriptReference.initialVelocityMin.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialVelocityMin.x, GUILayout.Width(50));
@@ -1717,7 +1841,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float initialVelocityMinY = playgroundParticlesScriptReference.initialVelocityMin.y;
 						float initialVelocityMaxY = playgroundParticlesScriptReference.initialVelocityMax.y;
-						EditorGUILayout.MinMaxSlider(ref initialVelocityMinY, ref initialVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref initialVelocityMinY, ref initialVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.initialVelocityMin.y = Mathf.Clamp (initialVelocityMinY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialVelocityMax.y = Mathf.Clamp (initialVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialVelocityMin.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialVelocityMin.y, GUILayout.Width(50));
@@ -1730,7 +1854,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float initialVelocityMinZ = playgroundParticlesScriptReference.initialVelocityMin.z;
 						float initialVelocityMaxZ = playgroundParticlesScriptReference.initialVelocityMax.z;
-						EditorGUILayout.MinMaxSlider(ref initialVelocityMinZ, ref initialVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref initialVelocityMinZ, ref initialVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.initialVelocityMin.z = Mathf.Clamp (initialVelocityMinZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialVelocityMax.z = Mathf.Clamp (initialVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialVelocityMin.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialVelocityMin.z, GUILayout.Width(50));
@@ -1774,11 +1898,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					// X
 					GUILayout.BeginHorizontal();
 					GUILayout.Space(16);
-					GUILayout.Label(playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range, GUILayout.Width(50));
+					GUILayout.Label(playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.Rectangular||playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range);
 					EditorGUILayout.Separator();
 					float initialLocalVelocityMinX = playgroundParticlesScriptReference.initialLocalVelocityMin.x;
 					float initialLocalVelocityMaxX = playgroundParticlesScriptReference.initialLocalVelocityMax.x;
-					EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinX, ref initialLocalVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+					EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinX, ref initialLocalVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.initialLocalVelocityMin.x = Mathf.Clamp (initialLocalVelocityMinX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 					playgroundParticlesScriptReference.initialLocalVelocityMax.x = Mathf.Clamp (initialLocalVelocityMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 					playgroundParticlesScriptReference.initialLocalVelocityMin.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialLocalVelocityMin.x, GUILayout.Width(50));
@@ -1792,7 +1916,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float initialLocalVelocityMinY = playgroundParticlesScriptReference.initialLocalVelocityMin.y;
 						float initialLocalVelocityMaxY = playgroundParticlesScriptReference.initialLocalVelocityMax.y;
-						EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinY, ref initialLocalVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinY, ref initialLocalVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.initialLocalVelocityMin.y = Mathf.Clamp (initialLocalVelocityMinY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialLocalVelocityMax.y = Mathf.Clamp (initialLocalVelocityMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialLocalVelocityMin.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialLocalVelocityMin.y, GUILayout.Width(50));
@@ -1805,20 +1929,13 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float initialLocalVelocityMinZ = playgroundParticlesScriptReference.initialLocalVelocityMin.z;
 						float initialLocalVelocityMaxZ = playgroundParticlesScriptReference.initialLocalVelocityMax.z;
-						EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinZ, ref initialLocalVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref initialLocalVelocityMinZ, ref initialLocalVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.initialLocalVelocityMin.z = Mathf.Clamp (initialLocalVelocityMinZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialLocalVelocityMax.z = Mathf.Clamp (initialLocalVelocityMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
 						playgroundParticlesScriptReference.initialLocalVelocityMin.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialLocalVelocityMin.z, GUILayout.Width(50));
 						playgroundParticlesScriptReference.initialLocalVelocityMax.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.initialLocalVelocityMax.z, GUILayout.Width(50));
 						GUILayout.EndHorizontal();
 					}
-					/*
-				if (playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.SphericalSector || playgroundParticlesScriptReference.initialLocalVelocityMethod==MINMAXVECTOR3METHOD.SphericalSectorLinear) {
-					EditorGUI.indentLevel++;
-					playgroundParticlesScriptReference.initialLocalVelocityMin.y = EditorGUILayout.Slider(playgroundLanguage.sectorA, playgroundParticlesScriptReference.initialLocalVelocityMin.y, -1f, 1f);
-					playgroundParticlesScriptReference.initialLocalVelocityMax.y = EditorGUILayout.Slider(playgroundLanguage.sectorB, playgroundParticlesScriptReference.initialLocalVelocityMax.y, 0, 1f);
-					EditorGUI.indentLevel--;
-				}*/
 					
 					EditorGUILayout.Separator();
 					GUI.enabled = !onlySourcePositioning.boolValue&&!playgroundParticlesScriptReference.onlyLifetimePositioning;
@@ -1956,7 +2073,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.Separator();
 						float minDepth = playgroundParticlesScriptReference.minCollisionDepth;
 						float maxDepth = playgroundParticlesScriptReference.maxCollisionDepth;
-						EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+						EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.ExpandWidth(false));
 						playgroundParticlesScriptReference.minCollisionDepth = Mathf.Clamp (minDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 						playgroundParticlesScriptReference.maxCollisionDepth = Mathf.Clamp (maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 						playgroundParticlesScriptReference.minCollisionDepth = EditorGUILayout.FloatField(playgroundParticlesScriptReference.minCollisionDepth, GUILayout.Width(50));
@@ -1994,11 +2111,11 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					// X
 					GUILayout.BeginHorizontal();
 					GUILayout.Space(32);
-					GUILayout.Label("X", GUILayout.Width(50));
+					GUILayout.Label("X");
 					EditorGUILayout.Separator();
 					float bounceRandomMinX = playgroundParticlesScriptReference.bounceRandomMin.x;
 					float bounceRandomMaxX = playgroundParticlesScriptReference.bounceRandomMax.x;
-					EditorGUILayout.MinMaxSlider(ref bounceRandomMinX, ref bounceRandomMaxX, -1f, 1f, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-100));
+					EditorGUILayout.MinMaxSlider(ref bounceRandomMinX, ref bounceRandomMaxX, -1f, 1f, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.bounceRandomMin.x = Mathf.Clamp (bounceRandomMinX, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMax.x = Mathf.Clamp (bounceRandomMaxX, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMin.x = EditorGUILayout.FloatField(playgroundParticlesScriptReference.bounceRandomMin.x, GUILayout.Width(50));
@@ -2011,7 +2128,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUILayout.Separator();
 					float bounceRandomMinY = playgroundParticlesScriptReference.bounceRandomMin.y;
 					float bounceRandomMaxY = playgroundParticlesScriptReference.bounceRandomMax.y;
-					EditorGUILayout.MinMaxSlider(ref bounceRandomMinY, ref bounceRandomMaxY, -1f, 1f, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-100));
+					EditorGUILayout.MinMaxSlider(ref bounceRandomMinY, ref bounceRandomMaxY, -1f, 1f, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.bounceRandomMin.y = Mathf.Clamp (bounceRandomMinY, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMax.y = Mathf.Clamp (bounceRandomMaxY, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMin.y = EditorGUILayout.FloatField(playgroundParticlesScriptReference.bounceRandomMin.y, GUILayout.Width(50));
@@ -2024,7 +2141,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					EditorGUILayout.Separator();
 					float bounceRandomMinZ = playgroundParticlesScriptReference.bounceRandomMin.z;
 					float bounceRandomMaxZ = playgroundParticlesScriptReference.bounceRandomMax.z;
-					EditorGUILayout.MinMaxSlider(ref bounceRandomMinZ, ref bounceRandomMaxZ, -1f, 1f, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-100));
+					EditorGUILayout.MinMaxSlider(ref bounceRandomMinZ, ref bounceRandomMaxZ, -1f, 1f, GUILayout.ExpandWidth(false));
 					playgroundParticlesScriptReference.bounceRandomMin.z = Mathf.Clamp (bounceRandomMinZ, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMax.z = Mathf.Clamp (bounceRandomMaxZ, -1f, 1f);
 					playgroundParticlesScriptReference.bounceRandomMin.z = EditorGUILayout.FloatField(playgroundParticlesScriptReference.bounceRandomMin.z, GUILayout.Width(50));
@@ -2056,8 +2173,8 @@ class PlaygroundParticleSystemInspectorC : Editor {
 							
 							playgroundParticlesScriptReference.colliders[c].enabled = EditorGUILayout.Toggle("", playgroundParticlesScriptReference.colliders[c].enabled, GUILayout.Width(16));
 							GUI.enabled = (GUI.enabled&&playgroundParticlesScriptReference.colliders[c].enabled);
-							playgroundParticlesScriptReference.colliders[c].transform = EditorGUILayout.ObjectField("", playgroundParticlesScriptReference.colliders[c].transform, typeof(Transform), true) as Transform;
-							playgroundParticlesScriptReference.colliders[c].offset = EditorGUILayout.Vector3Field("", playgroundParticlesScriptReference.colliders[c].offset, GUILayout.Width(Mathf.FloorToInt(Screen.width/1.8f)-142));
+							playgroundParticlesScriptReference.colliders[c].transform = EditorGUILayout.ObjectField("", playgroundParticlesScriptReference.colliders[c].transform, typeof(Transform), true, GUILayout.MinWidth(40)) as Transform;
+							playgroundParticlesScriptReference.colliders[c].offset = EditorGUILayout.Vector3Field("", playgroundParticlesScriptReference.colliders[c].offset, GUILayout.MaxWidth(140));
 							GUI.enabled = true;
 							
 							EditorGUILayout.Separator();
@@ -2231,14 +2348,14 @@ class PlaygroundParticleSystemInspectorC : Editor {
 				EditorGUILayout.BeginVertical (boxStyle);
 				GUILayout.BeginHorizontal();
 				playgroundSettings.renderingShadowsFoldout = GUILayout.Toggle(playgroundSettings.renderingShadowsFoldout, playgroundLanguage.shadows, EditorStyles.foldout);
-				#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6
+				#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
 				GUILayout.Label (playgroundParticlesScriptReference.particleSystemRenderer2.castShadows||playgroundParticlesScriptReference.particleSystemRenderer2.receiveShadows?playgroundLanguage.on:playgroundLanguage.off, EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
 				#else
 				GUILayout.Label (shurikenRenderer.shadowCastingMode!=UnityEngine.Rendering.ShadowCastingMode.Off||playgroundParticlesScriptReference.particleSystemRenderer2.receiveShadows?playgroundLanguage.on:playgroundLanguage.off, EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
 				#endif
 				GUILayout.EndHorizontal();
 				if (playgroundSettings.renderingShadowsFoldout) {
-					#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6
+					#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9
 					shurikenRenderer.castShadows = EditorGUILayout.Toggle (playgroundLanguage.castShadows, shurikenRenderer.castShadows);
 					#else
 					shurikenRenderer.shadowCastingMode = (UnityEngine.Rendering.ShadowCastingMode)EditorGUILayout.EnumPopup (playgroundLanguage.castShadows, shurikenRenderer.shadowCastingMode);
@@ -2416,7 +2533,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.BeginHorizontal();
 						
 						GUILayout.Label(i.ToString(), EditorStyles.miniLabel, GUILayout.Width(18));
-						playgroundParticlesScriptReference.manipulators[i].unfolded = GUILayout.Toggle(playgroundParticlesScriptReference.manipulators[i].unfolded, PlaygroundInspectorC.ManipulatorTypeName(playgroundParticlesScriptReference.manipulators[i].type), EditorStyles.foldout, GUILayout.Width(Screen.width/4));
+						playgroundParticlesScriptReference.manipulators[i].unfolded = GUILayout.Toggle(playgroundParticlesScriptReference.manipulators[i].unfolded, PlaygroundInspectorC.ManipulatorTypeName(playgroundParticlesScriptReference.manipulators[i].type), EditorStyles.foldout, GUILayout.Width(Screen.width/guiDpiScale/5));
 						if (playgroundParticlesScriptReference.manipulators[i].transform.available && playgroundParticlesScriptReference.manipulators[i].transform.transform!=null) {
 							if (GUILayout.Button(" ("+mName+")", EditorStyles.label)) {
 								Selection.activeGameObject = playgroundParticlesScriptReference.manipulators[i].transform.transform.gameObject;
@@ -2512,7 +2629,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 						EditorGUILayout.BeginHorizontal();
 						
 						GUILayout.Label(i.ToString(), EditorStyles.miniLabel, GUILayout.Width(18));
-						eventListFoldout[i] = GUILayout.Toggle(eventListFoldout[i], playgroundParticlesScriptReference.events[i].eventType.ToString(), EditorStyles.foldout, GUILayout.Width(Screen.width/4));
+						eventListFoldout[i] = GUILayout.Toggle(eventListFoldout[i], playgroundParticlesScriptReference.events[i].eventType.ToString(), EditorStyles.foldout, GUILayout.Width(Screen.width/guiDpiScale/5));
 						if (playgroundParticlesScriptReference.events[i].target!=null) {
 							if (GUILayout.Button(" ("+eName+")", EditorStyles.label)) {
 								Selection.activeGameObject = playgroundParticlesScriptReference.events[i].target.gameObject;
@@ -2715,7 +2832,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			}
 			
 			// Advanced Settings
-			string localSimulationSpaceName = playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace==ParticleSystemSimulationSpace.Local?playgroundLanguage.localSpace:playgroundLanguage.globalSpace;
+			string localSimulationSpaceName = playgroundParticlesScriptReference.IsLocalSpace()?playgroundLanguage.localSpace:playgroundLanguage.globalSpace;
 			if (GUILayout.Button(playgroundLanguage.advanced+" ("+localSimulationSpaceName+")", EditorStyles.toolbarDropDown)) playgroundSettings.advancedFoldout=!playgroundSettings.advancedFoldout;
 			if (playgroundSettings.advancedFoldout) {
 				
@@ -2723,13 +2840,26 @@ class PlaygroundParticleSystemInspectorC : Editor {
 				GUILayout.BeginVertical(boxStyle);
 				GUILayout.BeginHorizontal();
 				playgroundSettings.advancedSimulationFoldout = GUILayout.Toggle(playgroundSettings.advancedSimulationFoldout, playgroundLanguage.simulationSpace, EditorStyles.foldout);
-				GUILayout.Label (playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace.ToString(), EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
+
+				string simulationSpaceLabel = "";
+				#if UNITY_5_5_OR_NEWER
+				var mainModule = playgroundParticlesScriptReference.GetComponent<ParticleSystem>().main;
+				simulationSpaceLabel = mainModule.simulationSpace.ToString(); 
+				#else
+				simulationSpaceLabel = playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace.ToString();
+				#endif
+
+				GUILayout.Label (simulationSpaceLabel, EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
 				GUILayout.EndHorizontal();
 				if (playgroundSettings.advancedSimulationFoldout) {
 					GUI.enabled = (playgroundParticlesScriptReference.source!=SOURCEC.Projection);
+					#if UNITY_5_5_OR_NEWER
+					mainModule.simulationSpace = (ParticleSystemSimulationSpace)EditorGUILayout.EnumPopup(playgroundLanguage.simulationSpace, mainModule.simulationSpace);
+					#else
 					playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace = (ParticleSystemSimulationSpace)EditorGUILayout.EnumPopup(playgroundLanguage.simulationSpace, playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace);
+					#endif
 					GUI.enabled = true;
-					if (playgroundParticlesScriptReference.GetComponent<ParticleSystem>().simulationSpace==ParticleSystemSimulationSpace.Local && playgroundParticlesScriptReference.source!=SOURCEC.Projection) {
+					if (playgroundParticlesScriptReference.IsLocalSpace() && playgroundParticlesScriptReference.source!=SOURCEC.Projection) {
 						
 						playgroundParticlesScriptReference.applyLocalSpaceMovementCompensation = EditorGUILayout.ToggleLeft (playgroundLanguage.movementCompensation, playgroundParticlesScriptReference.applyLocalSpaceMovementCompensation);
 						GUI.enabled = playgroundParticlesScriptReference.applyLocalSpaceMovementCompensation;
@@ -2793,7 +2923,24 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					playgroundParticlesScriptReference.calculateManipulatorOnRebirth = EditorGUILayout.Toggle (playgroundLanguage.calculateManipulator, playgroundParticlesScriptReference.calculateManipulatorOnRebirth);
 				}
 				GUILayout.EndVertical();
-				
+
+				// Seed
+				GUILayout.BeginVertical(boxStyle);
+				GUILayout.BeginHorizontal();
+				playgroundSettings.advancedSeedFoldout = GUILayout.Toggle(playgroundSettings.advancedSeedFoldout, playgroundLanguage.seed, EditorStyles.foldout);
+				GUILayout.Label (playgroundParticlesScriptReference.randomSeed.ToString(), EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
+				GUILayout.EndHorizontal();
+				if (playgroundSettings.advancedSeedFoldout) {
+					playgroundParticlesScriptReference.randomSeedOnEnable = EditorGUILayout.Toggle (playgroundLanguage.randomSeedOnEnable, playgroundParticlesScriptReference.randomSeedOnEnable);
+					GUI.enabled = !playgroundParticlesScriptReference.randomSeedOnEnable;
+					int currentRandomSeed = playgroundParticlesScriptReference.randomSeed;
+					playgroundParticlesScriptReference.randomSeed = EditorGUILayout.IntField (playgroundLanguage.randomSeed, playgroundParticlesScriptReference.randomSeed);
+					if (currentRandomSeed != playgroundParticlesScriptReference.randomSeed)
+						playgroundParticlesScriptReference.RefreshRandomAll();
+					GUI.enabled = true;
+				}
+				GUILayout.EndVertical();
+
 				// Locks
 				GUILayout.BeginVertical(boxStyle);
 				GUILayout.BeginHorizontal();
@@ -2984,7 +3131,14 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			thisEvent.eventTime = EditorGUILayout.FloatField (playgroundLanguage.time, thisEvent.eventTime);
 		
 		EditorGUILayout.Separator();
-		
+
+		// Emit count
+		if (thisEvent.broadcastType != EVENTBROADCASTC.EventListeners)
+		{
+			EditorGUILayout.PropertyField(serializedEvent.FindPropertyRelative("eventEmitCount"),  new GUIContent(playgroundLanguage.emitCount, playgroundLanguage.emitCountDescription));
+			EditorGUILayout.Separator();
+		}
+
 		// Settings with inheritance options
 		EditorGUILayout.PropertyField(serializedEvent.FindPropertyRelative("eventInheritancePosition"), new GUIContent(playgroundLanguage.position, playgroundLanguage.inheritancePosition));
 		if (thisEvent.eventInheritancePosition == EVENTINHERITANCEC.User) {
@@ -2997,7 +3151,60 @@ class PlaygroundParticleSystemInspectorC : Editor {
 		
 		EditorGUILayout.PropertyField(serializedEvent.FindPropertyRelative("eventInheritanceVelocity"), new GUIContent(playgroundLanguage.velocity, playgroundLanguage.inheritanceVelocity));
 		if (thisEvent.eventInheritanceVelocity == EVENTINHERITANCEC.User)
-			thisEvent.eventVelocity = EditorGUILayout.Vector3Field (" ", thisEvent.eventVelocity);
+		{
+			EditorGUILayout.PropertyField(serializedEvent.FindPropertyRelative("velocityValueMethod"), new GUIContent(playgroundLanguage.valueMethod, playgroundLanguage.valueMethodDescription));
+			if (thisEvent.velocityValueMethod == VALUEMETHOD.Constant)
+			{
+				thisEvent.eventVelocity = EditorGUILayout.Vector3Field (" ", thisEvent.eventVelocity);
+			}
+			else
+			{
+				EditorGUILayout.PropertyField(serializedEvent.FindPropertyRelative("velocityRandomMethod"), new GUIContent(playgroundLanguage.randomMethod, playgroundLanguage.randomMethodDescription));
+
+				// X
+				GUILayout.BeginHorizontal();
+				GUILayout.Space(16);
+				GUILayout.Label(thisEvent.velocityRandomMethod==MINMAXVECTOR3METHOD.Rectangular||thisEvent.velocityRandomMethod==MINMAXVECTOR3METHOD.RectangularLinear?"X":playgroundLanguage.range);
+				EditorGUILayout.Separator();
+				float velMinX = thisEvent.eventVelocityMin.x;
+				float velMaxX = thisEvent.eventVelocity.x;
+				EditorGUILayout.MinMaxSlider(ref velMinX, ref velMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
+				thisEvent.eventVelocityMin.x = Mathf.Clamp (velMinX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+				thisEvent.eventVelocity.x = Mathf.Clamp (velMaxX, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+				thisEvent.eventVelocityMin.x = EditorGUILayout.FloatField(thisEvent.eventVelocityMin.x, GUILayout.Width(50));
+				thisEvent.eventVelocity.x= EditorGUILayout.FloatField(thisEvent.eventVelocity.x, GUILayout.Width(50));
+				GUILayout.EndHorizontal();
+				if (thisEvent.velocityRandomMethod==MINMAXVECTOR3METHOD.Rectangular || thisEvent.velocityRandomMethod==MINMAXVECTOR3METHOD.RectangularLinear) 
+				{
+					// Y
+					GUILayout.BeginHorizontal();
+					GUILayout.Space(16);
+					GUILayout.Label("Y");
+					EditorGUILayout.Separator();
+					float velMinY = thisEvent.eventVelocityMin.y;
+					float velMaxY = thisEvent.eventVelocity.y;
+					EditorGUILayout.MinMaxSlider(ref velMinY, ref velMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
+					thisEvent.eventVelocityMin.y = Mathf.Clamp (velMinY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+					thisEvent.eventVelocity.y = Mathf.Clamp (velMaxY, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+					thisEvent.eventVelocityMin.y = EditorGUILayout.FloatField(thisEvent.eventVelocityMin.y, GUILayout.Width(50));
+					thisEvent.eventVelocity.y = EditorGUILayout.FloatField(thisEvent.eventVelocity.y, GUILayout.Width(50));
+					GUILayout.EndHorizontal();
+					// Z
+					GUILayout.BeginHorizontal();
+					GUILayout.Space(16);
+					GUILayout.Label("Z");
+					EditorGUILayout.Separator();
+					float velMinZ = thisEvent.eventVelocityMin.z;
+					float velMaxZ = thisEvent.eventVelocity.z;
+					EditorGUILayout.MinMaxSlider(ref velMinZ, ref velMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity, GUILayout.ExpandWidth(false));
+					thisEvent.eventVelocityMin.z = Mathf.Clamp (velMinZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+					thisEvent.eventVelocity.z = Mathf.Clamp (velMaxZ, -playgroundSettings.maximumAllowedInitialVelocity, playgroundSettings.maximumAllowedInitialVelocity);
+					thisEvent.eventVelocityMin.z = EditorGUILayout.FloatField(thisEvent.eventVelocityMin.z, GUILayout.Width(50));
+					thisEvent.eventVelocity.z = EditorGUILayout.FloatField(thisEvent.eventVelocity.z, GUILayout.Width(50));
+					GUILayout.EndHorizontal();
+				}
+			}
+		}
 		thisEvent.velocityMultiplier = EditorGUILayout.FloatField(playgroundLanguage.velocityMultiplier, thisEvent.velocityMultiplier);
 		
 		EditorGUILayout.Separator();
@@ -3318,7 +3525,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			EditorGUILayout.Separator();
 			float minDepth = playgroundParticlesScriptReference.projection.minDepth;
 			float maxDepth = playgroundParticlesScriptReference.projection.maxDepth;
-			EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.Width(Mathf.CeilToInt(Screen.width/1.805f)-110));
+			EditorGUILayout.MinMaxSlider(ref minDepth, ref maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth, GUILayout.ExpandWidth(false));
 			playgroundParticlesScriptReference.projection.minDepth = Mathf.Clamp (minDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 			playgroundParticlesScriptReference.projection.maxDepth = Mathf.Clamp (maxDepth, -playgroundSettings.maximumAllowedDepth, playgroundSettings.maximumAllowedDepth);
 			playgroundParticlesScriptReference.projection.minDepth = EditorGUILayout.FloatField(playgroundParticlesScriptReference.projection.minDepth, GUILayout.Width(50));
@@ -3401,7 +3608,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			Handles.DrawLine(p1, p2);
 		}
 	}
-	
+
 	bool keyPressed = false;
 	int foldoutHeight = 0;
 	Quaternion cameraRotation;
@@ -3477,7 +3684,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 		if (playgroundScriptReference.drawGizmos && playgroundScriptReference.drawSourcePositions) {
 			Handles.color = new Color(1f,1f,.2f,.2f);
 			for (int pos = 0; pos<playgroundParticlesScriptReference.playgroundCache.targetPosition.Length; pos++) {
-				Handles.DotCap(0, playgroundParticlesScriptReference.playgroundCache.targetPosition[pos], cameraRotation, .025f);
+				Handles.DotHandleCap(0, playgroundParticlesScriptReference.playgroundCache.targetPosition[pos], cameraRotation, .025f, EventType.Repaint);
 			}
 		}
 		
@@ -3487,12 +3694,12 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			bool drawPoint = true;
 			switch (playgroundParticlesScriptReference.nearestNeighborOriginMethod) {
 			case NEARESTNEIGHBORORIGINMETHOD.SourcePoint:
-				sortOriginPosition = playgroundParticlesScriptReference.shurikenParticleSystem.simulationSpace==ParticleSystemSimulationSpace.World?
+				sortOriginPosition = !playgroundParticlesScriptReference.IsLocalSpace()?
 					playgroundParticlesScriptReference.playgroundCache.targetPosition[playgroundParticlesScriptReference.nearestNeighborOrigin%playgroundParticlesScriptReference.playgroundCache.targetPosition.Length]:
 						playgroundParticlesScriptReference.particleSystemTransform.TransformPoint(playgroundParticlesScriptReference.playgroundCache.targetPosition[playgroundParticlesScriptReference.nearestNeighborOrigin%playgroundParticlesScriptReference.playgroundCache.targetPosition.Length]);
 				break;
 			case NEARESTNEIGHBORORIGINMETHOD.Vector3:
-				sortOriginPosition = playgroundParticlesScriptReference.shurikenParticleSystem.simulationSpace==ParticleSystemSimulationSpace.World?
+				sortOriginPosition = !playgroundParticlesScriptReference.IsLocalSpace()?
 					playgroundParticlesScriptReference.nearestNeighborOriginVector3:
 						playgroundParticlesScriptReference.particleSystemTransform.TransformPoint(playgroundParticlesScriptReference.nearestNeighborOriginVector3);
 				break;
@@ -3504,7 +3711,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			}
 			if (drawPoint) {
 				Handles.color = new Color(1f,1f,.2f,.6f);
-				Handles.CircleCap(0, sortOriginPosition, cameraRotation, HandleUtility.GetHandleSize(sortOriginPosition)*.05f);
+				Handles.CircleHandleCap(0, sortOriginPosition, cameraRotation, HandleUtility.GetHandleSize(sortOriginPosition)*.05f,EventType.Repaint);
 				Handles.color = new Color(1f,.7f,.2f,.2f);
 				Handles.DrawSolidDisc(sortOriginPosition, Camera.current.transform.forward, HandleUtility.GetHandleSize(sortOriginPosition)*.2f);
 			}
@@ -3532,7 +3739,17 @@ class PlaygroundParticleSystemInspectorC : Editor {
 			Event e = Event.current;
 			
 			// Paint Toolbox in Scene View
-			Rect toolboxRect = new Rect(10f,Screen.height-(138f+foldoutHeight),300f,103f+foldoutHeight);
+			Rect toolboxRect = new Rect(
+				// Pos X
+				10f,
+				// Pos Y
+				10f,
+				// Width
+				300f,
+				// Height
+				103f+foldoutHeight
+			);
+
 			if (PlaygroundC.reference.paintToolbox) {
 				if (!playgroundSettings.paintToolboxSettingsFoldout) {
 					foldoutHeight = 0;
@@ -3543,7 +3760,8 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					case 2: foldoutHeight = 36; break;
 					}
 				}
-				if (!playgroundSettings.toolboxFoldout) foldoutHeight=-69;
+				if (!playgroundSettings.toolboxFoldout)
+					foldoutHeight=-69;
 				
 				// Don't deselect upon click
 				if (e.type == EventType.Layout && toolboxRect.Contains (e.mousePosition)) {
@@ -3639,13 +3857,13 @@ class PlaygroundParticleSystemInspectorC : Editor {
 					if (playgroundParticlesScriptReference.paint.collisionType==COLLISIONTYPEC.Physics3D) {
 						if (Physics.Raycast(mouseRay, out eraserHit, 10000f, playgroundParticlesScriptReference.paint.layerMask)) {
 							Handles.color = new Color(0f,0f,0f,.4f);
-							Handles.CircleCap(-1, eraserHit.point, Quaternion.LookRotation(mouseRay.direction), eraserRadius);
+							Handles.CircleHandleCap(-1, eraserHit.point, Quaternion.LookRotation(mouseRay.direction), eraserRadius, EventType.Repaint);
 						}
 					} else {
 						eraserHit2d = Physics2D.Raycast (mouseRay.origin, mouseRay.direction, 100000f, playgroundParticlesScriptReference.paint.layerMask, playgroundParticlesScriptReference.paint.minDepth, playgroundParticlesScriptReference.paint.maxDepth);
 						if (eraserHit2d.collider!=null) {
 							Handles.color = new Color(0f,0f,0f,.4f);
-							Handles.CircleCap(-1, eraserHit2d.point, Quaternion.LookRotation(mouseRay.direction), eraserRadius);
+							Handles.CircleHandleCap(-1, eraserHit2d.point, Quaternion.LookRotation(mouseRay.direction), eraserRadius, EventType.Repaint);
 						}
 					}
 				}
@@ -3654,7 +3872,7 @@ class PlaygroundParticleSystemInspectorC : Editor {
 				// Spacing preview
 				if (selectedPaintMode!=2) {
 					Handles.color = new Color(.3f,1f,.3f,.3f);
-					Handles.CircleCap(-1, playgroundParticlesScriptReference.paint.lastPaintPosition, Quaternion.LookRotation(Camera.current.transform.forward), playgroundParticlesScriptReference.paint.spacing);
+					Handles.CircleHandleCap(-1, playgroundParticlesScriptReference.paint.lastPaintPosition, Quaternion.LookRotation(Camera.current.transform.forward), playgroundParticlesScriptReference.paint.spacing,EventType.Repaint);
 				}
 				
 				if (e.type  == EventType.KeyDown)

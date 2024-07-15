@@ -59,6 +59,7 @@ namespace ParticlePlaygroundLanguage {
 		public string presetIconPath							= "Preset Icon Path";
 		public string brushPath									= "Brush Path";
 		public string scriptPath								= "Script Path";
+		public string extensionPath								= "Extension Path";
 		public string updateUrl									= "Update URL";
 		public string extensionsUrl								= "Extensions URL";
 		public string extendYourPlayground						= "Extend Your Playground";
@@ -127,6 +128,8 @@ namespace ParticlePlaygroundLanguage {
 		public string removeLanguage							= "Are you sure you want to remove the language"; // Language name always added last
 		public string removePreset								= "Permanently delete this preset?";
 		public string removePresetText							= "will be removed. Are you sure?"; // Preset name always added first
+		public string removeCategory							= "Permanently remove this category?";
+		public string removeCategoryText						= "will be removed. Any presets within this category will be placed in \"Uncategorized\""; // Category name always added first
 		public string removeParticlePlaygroundSystem			= "Are you sure you want to remove this Particle Playground System?";
 		public string removeManipulator							= "Are you sure you want to remove the Manipulator assigned to"; // GameObject name always added last
 		public string removeEvent								= "Remove the events from"; // Object name always added last
@@ -208,13 +211,14 @@ namespace ParticlePlaygroundLanguage {
 		public string affects									= "Affects";
 		public string type										= "Type";
 		public string time										= "Time";
-		public string presetText								= "Create a Particle Playground Preset by selecting a Particle Playground System and an icon (optional). The icon must be in png-format and preferably 32x32 pixels. All connected objects will be childed to the Particle Playground System.";
+		public string presetText								= "Create a Particle Playground Preset by selecting a Particle Playground System and an icon (optional). The icon must be in png-format and preferably 75x75 pixels. All connected objects will be childed to the Particle Playground System.";
 		public string publishPresetText							= "Prepare your preset(s) for packaging by selecting the Particle Playground Preset(s) in the list. All connected meshes, images and/or cached values will be distributed along with your Particle Playground System(s). The icon(s) will automatically be included if existing. Please check all dependencies before you distribute your asset. You agree that Polyfied cannot be held responsible for the quality of your asset when publishing assets connected to the Particle Playground framework.";
 		public string publishingGuide							= "Publishing Guide";
 		public string childConnected							= "Child Connected Objects";
 		public string presetWithSameNameFound					= "Preset with same name found!";
 		public string presetWithSameNameFoundText				= "already exists. Do you want to overwrite it?"; // Preset name always first
 		public string gameObjectIsNotPlayground					= "GameObject is not a Particle Playground System.";
+		public string selected									= "Selected";
 		public string brushWizardText							= "Create a Particle Playground Brush by selecting a texture and edit its settings. The texture must have Read/Write Enabled and use True Color (non-compressed) in its import settings.";
 		public string brushTexture								= "Brush Texture";
 		public string brushSameName								= "Brush with same name found!";
@@ -720,6 +724,31 @@ namespace ParticlePlaygroundLanguage {
 		public string cacheSize									= "Cache Size";
 		public string sendEvents								= "Send Events";
 		public string multithreadedStartup						= "Multithreaded Startup";
+		public string seed										= "Seed";
+		public string randomSeed								= "Random Seed";
+		public string randomSeedOnEnable						= "Random Seed On Enable";
+		public string emitCount									= "Emit Count";
+		public string emitCountDescription						= "The amount of particles to emit upon each event.";
+		public string managePresets								= "Manage Presets";
+		public string presetManager								= "Preset Manager";
+		public string categories								= "Categories";
+		public string categoriesInfo							= "Use the Preset Manager to create new, rename and remove existing preset categories as well as move or remove presets. When removing a category the presets contained will be placed in \"Uncategorized\".";
+		public string empty										= "Empty";
+		public string deselectAll								= "Deselect All";
+		public string move										= "Move";
+		public string removeSelectedPresets						= "Remove Selected Presets";
+		public string removeSelectedPresetsText					= "Are you sure you want to remove the selected presets?";
+		public string rename									= "Rename";
+		public string convertPresetsIntoResources				= "Convert Presets Into Resources";
+		public string convertPresetsIntoResourcesText			= "Are you sure you want to convert the selected presets into resources? A resources preset will always be included into builds and is able to instantiate using PlaygroundC.InstantiatePreset(name).";
+		public string valueMethod								= "Value Method";
+		public string valueMethodDescription					= "The method to apply to the set value.";
+		public string randomMethod								= "Random Method";
+		public string randomMethodDescription					= "The random method to apply to the set value.";
+		public string separateRotationAxes						= "Separate Rotation Axes";
+
+		public string customScreenDPI							= "Custom Screen DPI";
+		public string screenDPI									= "Screen DPI";
 
 
 		public static PlaygroundLanguageC New () {

@@ -17,12 +17,15 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 	
 	public int presetOrPublish = 0;
 	public int selectedPreset = 0;
-	public int selectedPresets = 0;
 	public int selectedCategory = 0;
 	public string[] categories;
 	public int[] categoryValues;
+	public Vector2 presetScroll;
+
+	int totalSelected = 0;
 
 	public bool showError1 = false;
+	static bool setToPublishMenu = false;
 
 	public static PlaygroundSettingsC playgroundSettings;
 	public static PlaygroundLanguageC playgroundLanguage;
@@ -33,12 +36,21 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 		window = EditorWindow.GetWindow<PlaygroundCreatePresetWindowC>(true, playgroundLanguage.presetWizard);
         window.Show();
 	}
+
+	public static void ShowWindowPublish ()
+	{
+		setToPublishMenu = true;
+		ShowWindow();
+	}
 	
 	void OnEnable () {
 		Initialize();
 	}
 	
 	public void Initialize () {
+		if (PlaygroundParticleWindowC.presetCategories == null)
+			return;
+
 		if (Selection.activeGameObject!=null) {
 			particleSystemObject = Selection.activeGameObject;
 			particleSystemName = Selection.activeGameObject.name;
@@ -72,6 +84,17 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 	}
 	
 	void OnGUI () {
+		if (window == null)
+		{
+			this.Close();
+			return;
+		}
+
+		if (setToPublishMenu)
+		{
+			presetOrPublish = 1;
+			setToPublishMenu = false;
+		}
 		EditorGUILayout.BeginVertical();
 		scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false);
 		EditorGUILayout.Separator();
@@ -129,14 +152,34 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 			selectedCategory = EditorGUILayout.IntPopup(playgroundLanguage.category, selectedCategory, categories, categoryValues);
 			childConnected = EditorGUILayout.Toggle (playgroundLanguage.childConnected, childConnected);
 		} else {
+			GUILayout.EndHorizontal();
 			EditorGUILayout.PrefixLabel(playgroundLanguage.presets);
 
-			// Mask field popup of presets
-			selectedPresets = EditorGUILayout.MaskField(selectedPresets, PlaygroundParticleWindowC.presetNames.ToArray());
+			// Selection of presets to export
+			totalSelected = 0;
+			presetScroll = EditorGUILayout.BeginScrollView(presetScroll);
+			for (int c = 0; c<PlaygroundParticleWindowC.presetCategories.Count; c++)
+			{
+				for (int i = 0; i<PlaygroundParticleWindowC.presetCategories[c].presetObjects.Count; i++)
+				{
+					GUILayout.BeginHorizontal();
+					PresetObjectC thisPreset = PlaygroundParticleWindowC.presetCategories[c].presetObjects[i];
+					thisPreset.selected = GUILayout.Toggle (thisPreset.selected, "", GUILayout.MaxWidth(24f));
+					if (GUILayout.Button (thisPreset.presetImage, EditorStyles.label, new GUILayoutOption[]{GUILayout.Width(24), GUILayout.Height(24)}))
+						thisPreset.selected = !thisPreset.selected;
+					if (GUILayout.Button (thisPreset.presetObject.name, EditorStyles.label))
+						thisPreset.selected = !thisPreset.selected;
+					if (thisPreset.selected)
+						totalSelected++;
+					GUILayout.EndHorizontal();
+				}
+			}
+			EditorGUILayout.EndScrollView();
 		}
 		EditorGUILayout.Separator();
 
-		GUI.enabled = presetOrPublish==0 || presetOrPublish==1 && selectedPresets!=0;
+		GUI.enabled = presetOrPublish==0 || presetOrPublish==1 && totalSelected>0;
+		GUILayout.BeginHorizontal();
 		if(GUILayout.Button(playgroundLanguage.create, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))){
 			if (particleSystemName != null && particleSystemName != "")
 				particleSystemName = particleSystemName.Trim();
@@ -150,6 +193,10 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 				CreatePublicPreset();
 			}
 		}
+		EditorGUILayout.Separator();
+		if (presetOrPublish==1)
+			EditorGUILayout.LabelField(playgroundLanguage.selected+": "+totalSelected+"/"+PlaygroundParticleWindowC.presetNames.Count, EditorStyles.miniLabel, new GUILayoutOption[]{GUILayout.ExpandWidth(false), GUILayout.MaxWidth((playgroundLanguage.selected.Length * 6f)+30f)});
+		GUILayout.EndHorizontal();
 		GUI.enabled = true;
 		GUILayout.EndVertical();
 		
@@ -160,7 +207,7 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 		GUILayout.EndScrollView();
 		GUILayout.EndVertical();
 	}
-	
+
 	public void CreatePreset () {
 
 		if (childConnected) {
@@ -239,7 +286,7 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 		for (int i = 0; i<PlaygroundParticleWindowC.presetObjects.Count; i++) {
 
 			// Match the mask to i
-			if ((selectedPresets & 1<<i) != 0) {
+			if ((PlaygroundParticleWindowC.presetObjects[i].selected)) {
 
 				// Add the preset object (prefab)
 				presets.Add (AssetDatabase.GetAssetPath(PlaygroundParticleWindowC.presetObjects[i].presetObject));
@@ -269,15 +316,41 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 		for (int i = 0; i<presetIcons.Count; i++)
 			presetDependencies.Add (presetIcons[i]);
 		
-		// Check that necessary files are in
-		if (!presetDependencies.Contains("PlaygroundC.cs"))
+		// Check that necessary main assets are in
+		if (!Contains(presetDependencies, "PlaygroundC.cs"))
 			presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.scriptPath+"PlaygroundC.cs");
-		if (!presetDependencies.Contains("PlaygroundParticlesC.cs"))
+		if (!Contains(presetDependencies, "PlaygroundParticlesC.cs"))
 			presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.scriptPath+"PlaygroundParticlesC.cs");
-		if (!presetDependencies.Contains("PlaygroundSpline.cs"))
-			presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.scriptPath+"Playground Splines/"+"PlaygroundSpline.cs");
-		if (!presetDependencies.Contains("Playground Manager"))
+		if (!Contains(presetDependencies, "Playground Manager"))
 			presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+"Resources/Playground Manager.prefab");
+
+		// Add necessary extension components
+		if (!Contains(presetDependencies, "PlaygroundSpline.cs"))
+			presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Splines/"+"PlaygroundSpline.cs");
+
+		// Add modular extension components
+		if (Contains(presetDependencies, "PlaygroundTrails.cs"))
+		{
+			if (!Contains(presetDependencies, "ParticlePlaygroundTrail.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Trails/Playground Trail Assets/Scripts/"+"ParticlePlaygroundTrail.cs");
+			if (!Contains(presetDependencies, "ParticlePlaygroundTrailPoint.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Trails/Playground Trail Assets/Scripts/"+"ParticlePlaygroundTrailPoint.cs");
+			if (!Contains(presetDependencies, "PlaygroundTrailParent.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Trails/Playground Trail Assets/Scripts/"+"PlaygroundTrailParent.cs");
+		}
+		if (Contains(presetDependencies, "PlaygroundRecorder.cs"))
+		{
+			if (!Contains(presetDependencies, "PlaygroundCompression.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Recorder/Scripts/"+"PlaygroundCompression.cs");
+			if (!Contains(presetDependencies, "PlaygroundRecorderData.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Recorder/Scripts/"+"PlaygroundRecorderData.cs");
+			if (!Contains(presetDependencies, "RecordedFrame.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Recorder/Scripts/"+"RecordedFrame.cs");
+			if (!Contains(presetDependencies, "SerializedFrame.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Recorder/Scripts/"+"SerializedFrame.cs");
+			if (!Contains(presetDependencies, "SerializedParticle.cs"))
+				presetDependencies.Add("Assets/"+playgroundSettings.playgroundPath+playgroundSettings.extensionPath+"Playground Recorder/Scripts/"+"SerializedParticle.cs");
+		}
 		
 		// Create a package
 		string assetPackagePath = EditorUtility.SaveFilePanel ("Save Preset", "", presets.Count>1?"Playground Preset Bundle ("+presets.Count+" presets).unitypackage":"Playground Preset - "+PlaygroundParticleWindowC.presetObjects[matched].presetObject.name+".unitypackage", "unitypackage");
@@ -304,6 +377,14 @@ class PlaygroundCreatePresetWindowC : EditorWindow {
 				asset.Contains("PlaygroundSplineInspector.cs") ||
 				asset.Contains("PlaygroundRecorderInspector.cs") ||
 				asset.Contains("PlaygroundTrailInspector.cs");
+	}
+
+	public bool Contains (List<string> list, string s)
+	{
+		for (int i = 0; i<list.Count; i++)
+			if (list[i].Contains(s))
+				return true;
+		return false;
 	}
 	
 	public void RefreshFromPresetList () {

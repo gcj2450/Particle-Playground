@@ -47,11 +47,12 @@ class PlaygroundParticleWindowC : EditorWindow {
 	public static bool updateAvailable = false;
 	public static bool assetsFound = true;
 	public static bool didSendExtensionsCheck = false;
+	public static float screenDPI;
 
 	[MenuItem ("Window/Particle Playground")]
 	public static void ShowWindow () {
 		PlaygroundParticleWindowC window = GetWindow<PlaygroundParticleWindowC>();
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0
 		window.title = "Playground";
 #else
 		window.titleContent.text = "Playground";
@@ -68,6 +69,7 @@ class PlaygroundParticleWindowC : EditorWindow {
 	}
 	
 	public void Initialize () {
+
 		presetButtonStyle = new GUIStyle();
 		presetButtonStyle.stretchWidth = true;
 		presetButtonStyle.stretchHeight = true;
@@ -81,6 +83,9 @@ class PlaygroundParticleWindowC : EditorWindow {
 		playgroundLanguage = PlaygroundSettingsC.GetLanguage();
 		PlaygroundInspectorC.playgroundLanguage = playgroundLanguage;
 		PlaygroundParticleSystemInspectorC.playgroundLanguage = playgroundLanguage;
+
+		// Set screen dpi
+		screenDPI = playgroundSettings.GetScreenDPI();
 
 		// Get all asset presets
 		string assetsDataPath = Application.dataPath;
@@ -114,7 +119,8 @@ class PlaygroundParticleWindowC : EditorWindow {
 		{
 			// Create the category
 			string categoryName = editorPresetCategories[i].Substring(editorPresetCategories[i].LastIndexOf('/')+1);
-			presetCategories.Add(new PresetCategory(categoryName));
+			string categoryLocation = playgroundSettings.playgroundPath+playgroundSettings.examplePresetPath + categoryName;
+			presetCategories.Add(new PresetCategory(categoryName, categoryLocation));
 
 			// Assign the preset objects to the category
 			string[] presetsInCategory = Directory.GetFiles (editorPresetCategories[i]);
@@ -170,7 +176,7 @@ class PlaygroundParticleWindowC : EditorWindow {
 			}
 		}
 		if (loosePresets.Length>0 && loosePresetsHasGo) {
-			presetCategories.Add(new PresetCategory("Uncategorized"));
+			presetCategories.Add(new PresetCategory("Uncategorized", playgroundSettings.playgroundPath+(playgroundSettings.examplePresetPath).Substring(0, playgroundSettings.examplePresetPath.Length-1)));
 			int categoryCount = presetCategories.Count-1;
 			for (int x = 0; x<loosePresets.Length; x++)
 			{
@@ -198,7 +204,7 @@ class PlaygroundParticleWindowC : EditorWindow {
 		// List any resources presets
 		Object[] resourcePrefabs = (Object[])Resources.LoadAll ("Presets", typeof(GameObject));
 		if (resourcePrefabs.Length > 0) {
-			presetCategories.Add(new PresetCategory("Resources"));
+			presetCategories.Add(new PresetCategory("Resources", playgroundSettings.playgroundPath+(playgroundSettings.presetPath).Substring(0, playgroundSettings.presetPath.Length-1)));
 			int categoryCount = presetCategories.Count-1;
 			for (int i = 0; i<resourcePrefabs.Length; i++)
 			{
@@ -522,7 +528,6 @@ class PlaygroundParticleWindowC : EditorWindow {
 						if (presetCategories[c].foldout && GUI.enabled) {
 
 							if (!listSize) EditorGUILayout.BeginHorizontal();
-							int rows = 1;
 							int iconwidths = 0;
 							int skippedPresets = 0;
 
@@ -552,9 +557,16 @@ class PlaygroundParticleWindowC : EditorWindow {
 									EditorGUILayout.Separator();
 									if(GUILayout.Button(presetCategories[c].presetObjects[i].example?playgroundLanguage.convertTo+" "+playgroundLanguage.resources:playgroundLanguage.convertTo+" "+playgroundLanguage.asset, EditorStyles.toolbarButton, new GUILayoutOption[]{GUILayout.ExpandWidth(false), GUILayout.Height(16)})){
 										if (presetCategories[c].presetObjects[i].example) {
+											if (!Directory.Exists (Application.dataPath+"/"+playgroundSettings.playgroundPath+playgroundSettings.presetPath))
+											{
+												Directory.CreateDirectory(Application.dataPath+"/"+playgroundSettings.playgroundPath+playgroundSettings.presetPath);
+												AssetDatabase.Refresh();
+											}
 											AssetDatabase.MoveAsset (AssetDatabase.GetAssetPath(presetCategories[c].presetObjects[i].presetObject), "Assets/"+playgroundSettings.playgroundPath+playgroundSettings.presetPath+presetCategories[c].presetObjects[i].presetObject.name+".prefab");
+											return;
 										} else {
 											AssetDatabase.MoveAsset (AssetDatabase.GetAssetPath(presetCategories[c].presetObjects[i].presetObject), "Assets/"+playgroundSettings.playgroundPath+playgroundSettings.examplePresetPath+presetCategories[c].presetObjects[i].presetObject.name+".prefab");
+											return;
 										}
 									}
 									if(GUILayout.Button("-", EditorStyles.toolbarButton, new GUILayoutOption[]{GUILayout.Width(18), GUILayout.Height(16)})){
@@ -567,17 +579,14 @@ class PlaygroundParticleWindowC : EditorWindow {
 								else
 								{
 									// Break row for icons
-									rows = Mathf.FloorToInt(Screen.width/ (342+iconSize));
-									iconwidths+=342+iconSize;
+									int rowWidth = Mathf.RoundToInt((392+iconSize) * (screenDPI / 72f));
+									iconwidths += rowWidth;
 									if (iconwidths>Screen.width && i>0) {
-										iconwidths=342+iconSize;
+										iconwidths=rowWidth;
 										EditorGUILayout.EndHorizontal();
 										EditorGUILayout.BeginHorizontal();
 									}
-									if (Screen.width>=644) {
-										EditorGUILayout.BeginVertical(boxStyle, GUILayout.MaxWidth (Mathf.CeilToInt(Screen.width/(rows))-(44/(rows))));
-									} else
-										EditorGUILayout.BeginVertical(boxStyle);
+									EditorGUILayout.BeginVertical(boxStyle);
 									EditorGUILayout.BeginHorizontal(GUILayout.MinHeight(46));
 									if(GUILayout.Button(presetCategories[c].presetObjects[i].presetImage, EditorStyles.miniButton, new GUILayoutOption[]{GUILayout.Width(iconSize+12), GUILayout.Height(iconSize+12)})){
 										CreatePresetObject(c, i);
@@ -628,6 +637,9 @@ class PlaygroundParticleWindowC : EditorWindow {
 					PlaygroundCreatePresetWindowC.ShowWindow();
 				}
 				EditorGUILayout.Separator();
+				if (GUILayout.Button(playgroundLanguage.managePresets, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))) {
+					PlaygroundPresetManagerWindowC.ShowWindow();
+				}
 				if (GUILayout.Button(playgroundLanguage.refresh, EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))) {
 					AssetDatabase.Refresh();
 					Initialize();
@@ -685,7 +697,6 @@ class PlaygroundParticleWindowC : EditorWindow {
 				if (didSendExtensionsCheck) {
 					if (canDisplayExtensions) {
 						EditorGUILayout.BeginHorizontal();
-						int rows = 1;
 						int iconwidths = 0;
 						int iconSize = Mathf.RoundToInt(75*playgroundSettings.extensionIconSize);
 						int skippedExtensions = 0;
@@ -741,18 +752,15 @@ class PlaygroundParticleWindowC : EditorWindow {
 									didLoad = extensionObjects[i].CheckAvailability();
 								
 								// Break row for icons
-								rows = Mathf.FloorToInt(Screen.width/322);
-								iconwidths+=322;
+								int rowWidth = Mathf.RoundToInt((392+iconSize) * (screenDPI / 72f));
+								iconwidths+=rowWidth;
 								if (iconwidths>Screen.width && i>0) {
-									iconwidths=322;
+									iconwidths=rowWidth;
 									EditorGUILayout.EndHorizontal();
 									EditorGUILayout.BeginHorizontal();
 								}
-								
-								if (Screen.width>=644) {
-									EditorGUILayout.BeginVertical(boxStyle, GUILayout.MaxWidth (Mathf.CeilToInt(Screen.width/rows)-(45/rows)));
-								} else
-									EditorGUILayout.BeginVertical(boxStyle);
+
+								EditorGUILayout.BeginVertical(boxStyle);
 								EditorGUILayout.BeginHorizontal(GUILayout.MinHeight(iconSize+16));
 								if(GUILayout.Button(extensionObjects[i].icon, EditorStyles.miniButton, new GUILayoutOption[]{GUILayout.Width(iconSize+12), GUILayout.Height(iconSize+12)})){
 									OpenUAS(extensionObjects[i].id);
@@ -831,6 +839,15 @@ class PlaygroundParticleWindowC : EditorWindow {
 				if (EditorGUI.EndChangeCheck()) {
 					PlaygroundHierarchyIcon.Set();
 				}
+
+				EditorGUI.BeginChangeCheck();
+				playgroundSettings.useCustomScreenDPI = EditorGUILayout.Toggle(playgroundLanguage.customScreenDPI, playgroundSettings.useCustomScreenDPI);
+				GUI.enabled = playgroundSettings.useCustomScreenDPI;
+				playgroundSettings.customScreenDPI = EditorGUILayout.FloatField(playgroundLanguage.screenDPI, playgroundSettings.customScreenDPI);
+				GUI.enabled = true;
+				if (EditorGUI.EndChangeCheck())
+					screenDPI = playgroundSettings.GetScreenDPI();
+
 				EditorGUILayout.Separator();
 
 				EditorGUILayout.BeginVertical(boxStyle);
@@ -964,6 +981,7 @@ class PlaygroundParticleWindowC : EditorWindow {
 					playgroundSettings.iconPath = EditorGUILayout.TextField(playgroundLanguage.presetIconPath, playgroundSettings.iconPath);
 					playgroundSettings.brushPath = EditorGUILayout.TextField(playgroundLanguage.brushPath, playgroundSettings.brushPath);
 					playgroundSettings.scriptPath = EditorGUILayout.TextField(playgroundLanguage.scriptPath, playgroundSettings.scriptPath);
+					playgroundSettings.extensionPath = EditorGUILayout.TextField(playgroundLanguage.extensionPath, playgroundSettings.extensionPath);
 					playgroundSettings.versionUrl = EditorGUILayout.TextField(playgroundLanguage.updateUrl, playgroundSettings.versionUrl);
 					playgroundSettings.extensionsUrl = EditorGUILayout.TextField(playgroundLanguage.extensionsUrl, playgroundSettings.extensionsUrl);
 
@@ -1062,11 +1080,20 @@ class PlaygroundParticleWindowC : EditorWindow {
 
 public class PresetCategory {
 	public string categoryName = "";
+	public string tmpNewName = "";
+	public string categoryLocation = "";
 	public bool foldout = false;
 	public List<PresetObjectC> presetObjects = new List<PresetObjectC>();
 
 	public PresetCategory (string categoryName) {
 		this.categoryName = categoryName;
+		this.tmpNewName = categoryName;
+	}
+
+	public PresetCategory (string categoryName, string categoryLocation) {
+		this.categoryName = categoryName;
+		this.tmpNewName = categoryName;
+		this.categoryLocation = categoryLocation;
 	}
 }
 
@@ -1076,6 +1103,7 @@ public class PresetObjectC {
 	public string presetPath;
 	public bool unfiltered = true;
 	public bool example = false;
+	public bool selected = false;
 
 	public PresetObjectC () {}
 

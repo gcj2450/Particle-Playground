@@ -230,14 +230,14 @@ public class PlaygroundRecorderInspector : Editor {
 					else if (!_inTrimming)
 						playbackData = " (" + (recordedSeconds).ToString("F1") + " s)";
 				}
-				PlaybackBar(recorder.HasRecordedFrames()? (recorder.IsRecording()? 1f : recorder.playHead) : 0, playbackStatus + playbackData, Screen.width - 56f);
+				PlaybackBar(recorder.HasRecordedFrames()? (recorder.IsRecording()? 1f : recorder.playHead) : 0, playbackStatus + playbackData);
 
 				GUI.color = Color.white;
 				GUI.backgroundColor = Color.white;
 				GUILayout.Space (-10f);
 				EditorGUILayout.BeginHorizontal();
-				EditorGUILayout.LabelField("Time: " + (recorder.HasRecordedFrames()?(recordedSeconds*recorder.playHead).ToString("F1") + " / " + recordedSeconds.ToString("F1") + " s" + " (" + recorder.playbackSpeed.ToString("F1") + "x)" : "-"), EditorStyles.objectFieldThumb, GUILayout.Width ((Screen.width/2f)-30f));
-				EditorGUILayout.LabelField("Frame: " + (recorder.HasRecordedFrames()?recorder.GetFrameAtTime(recorder.playHead).ToString() + " / " + recorder.FrameCount() : "-"), EditorStyles.objectFieldThumb, GUILayout.Width ((Screen.width/2f)-30f));
+				GUILayout.Label("Time: " + (recorder.HasRecordedFrames()?(recordedSeconds*recorder.playHead).ToString("F1") + " / " + recordedSeconds.ToString("F1") + " s" + " (" + recorder.playbackSpeed.ToString("F1") + "x)" : "-"), EditorStyles.toolbarTextField, GUILayout.ExpandWidth(true));
+				GUILayout.Label("Frame: " + (recorder.HasRecordedFrames()?recorder.GetFrameAtTime(recorder.playHead).ToString() + " / " + recorder.FrameCount() : "-"), EditorStyles.toolbarTextField, GUILayout.ExpandWidth(true));
 				EditorGUILayout.EndHorizontal();
 
 				GUI.enabled = true;
@@ -269,9 +269,8 @@ public class PlaygroundRecorderInspector : Editor {
 		EditorGUILayout.EndVertical();
 	}
 
-	public void PlaybackBar (float val, string label, float width) {
+	public void PlaybackBar (float val, string label) {
 		Rect rect = GUILayoutUtility.GetRect (18, 18, "TextField");
-		rect.width = width;
 		rect.height = 16;
 		if (val<0) val = 0;
 		EditorGUI.ProgressBar (rect, val, label);

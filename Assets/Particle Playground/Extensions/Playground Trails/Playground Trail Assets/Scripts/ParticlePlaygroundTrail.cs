@@ -56,7 +56,6 @@ namespace ParticlePlayground {
 		private int _pointCache = 200;
 		private int _birthIterator;
 		private int _deathIterator;
-		private float _particleTime;
 		private Vector3 _particlePosition;
 		private Vector3 _previousParticlePosition;
 		private Vector3 _particleDirection;
@@ -64,7 +63,8 @@ namespace ParticlePlayground {
 		private Vector3 _lastAddedPointDirection;
 		private bool _isDead = false;
 		private bool _isReady = false;
-		
+		private bool _queuedForReuse = false;
+
 		private float _timeCached;
 
 		/// <summary>
@@ -122,17 +122,18 @@ namespace ParticlePlayground {
 		}
 		
 		/// <summary>
-		/// Clears the trail mesh.
+		/// Clears the trail and resets the mesh.
 		/// </summary>
-		public void ClearMesh () 
+		public void ClearTrail () 
 		{
 			_birthIterator = 0;
 			_deathIterator = 0;
-			meshVerticesCache = new Vector3[0];
-			meshNormalsCache = new Vector3[0];
-			meshUvsCache = new Vector2[0];
-			meshTrianglesCache = new int[0];
-			meshColorsCache = new Color32[0];
+			trailPoints.Clear();
+			for (int i = 0; i<meshTrianglesCache.Length; i++)
+				meshTrianglesCache[i] = 0;
+			for (int i = 0; i<meshVerticesCache.Length; i++)
+				meshVerticesCache[i] = Vector3.zero;
+			UpdateMesh();
 		}
 		
 		/// <summary>
@@ -258,24 +259,6 @@ namespace ParticlePlayground {
 		public void NextPoint () 
 		{
 			_birthIterator++;
-		}
-		
-		/// <summary>
-		/// Gets the paired particle's current time.
-		/// </summary>
-		/// <returns>The paired particle's current time.</returns>
-		public float GetParticleTime () 
-		{
-			return _particleTime;
-		}
-		
-		/// <summary>
-		/// Sets the paired particle's current time.
-		/// </summary>
-		/// <param name="time">Time.</param>
-		public void SetParticleTime (float time) 
-		{
-			_particleTime = time;
 		}
 		
 		/// <summary>
@@ -420,6 +403,23 @@ namespace ParticlePlayground {
 		public bool IsDead () 
 		{
 			return _isDead;
+		}
+
+		public void QueueForReuse ()
+		{
+			ClearTrail();
+			_queuedForReuse = true;
+		}
+
+		public void DequeueForReuse ()
+		{
+			WakeUp();
+			_queuedForReuse = false;
+		}
+
+		public bool IsQueuedForReuse ()
+		{
+			return _queuedForReuse;
 		}
 	}
 }

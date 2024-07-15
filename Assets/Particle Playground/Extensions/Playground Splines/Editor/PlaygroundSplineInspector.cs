@@ -128,10 +128,14 @@ public class PlaygroundSplineInspector : Editor {
 						spline.SetControlPoint(i*3, point);
 					}
 					if(GUILayout.Button(playgroundLanguage.upSymbol, EditorStyles.toolbarButton, new GUILayoutOption[]{GUILayout.Width(18), GUILayout.Height(16)})){
-						
+						Undo.RecordObject(spline, "Swap spline node");
+						spline.SwapNodes(i, i>0? i-1 : spline.NodeCount);
+						EditorUtility.SetDirty(spline);
 					}
 					if(GUILayout.Button(playgroundLanguage.downSymbol, EditorStyles.toolbarButton, new GUILayoutOption[]{GUILayout.Width(18), GUILayout.Height(16)})){
-						
+						Undo.RecordObject(spline, "Swap spline node");
+						spline.SwapNodes(i, i<spline.NodeCount? i+1 : 0);
+						EditorUtility.SetDirty(spline);
 					}
 					EditorGUI.BeginChangeCheck();
 					if (GUILayout.Button("+", EditorStyles.toolbarButton, GUILayout.ExpandWidth(false))) {
@@ -413,8 +417,8 @@ public class PlaygroundSplineInspector : Editor {
 	private bool callForRemoveNode = false;
 	private void OnSceneGUI () {
 		
-		callForAddNode = (selectedIndex>-1 && Event.current.control && !Event.current.shift && Event.current.type==EventType.mouseUp);
-		callForRemoveNode = (selectedIndex>-1 && Event.current.control && Event.current.shift && Event.current.type==EventType.mouseUp);
+		callForAddNode = (selectedIndex>-1 && Event.current.control && !Event.current.shift && Event.current.type==EventType.MouseUp);
+		callForRemoveNode = (selectedIndex>-1 && Event.current.control && Event.current.shift && Event.current.type==EventType.MouseUp);
 		
 		handleTransform = spline.transform;
 		handleRotation = UnityEditor.Tools.pivotRotation == PivotRotation.Local ? handleTransform.rotation : Quaternion.identity;
@@ -427,7 +431,7 @@ public class PlaygroundSplineInspector : Editor {
 		else foldoutHeight = 120;
 		else
 			foldoutHeight = 0;
-		Rect toolboxRect = new Rect(10f,Screen.height-(70f+foldoutHeight),300f,103f+foldoutHeight);
+		Rect toolboxRect = new Rect(10f,10f,300f,103f+foldoutHeight);
 		
 		// Don't deselect upon click
 		if (toolboxFoldout && e.type == EventType.Layout) {
@@ -495,12 +499,12 @@ public class PlaygroundSplineInspector : Editor {
 		}
 		Handles.color = new Color(1f,.5f,0f);
 		if ((index==0||index%3==0)) {
-			if (Handles.Button(pointWithOffset, handleRotation, size * handleSize, size * pickSize, Handles.DotCap)) {
+			if (Handles.Button(pointWithOffset, handleRotation, size * handleSize, size * pickSize, Handles.DotHandleCap)) {
 				selectedIndex = SelectIndex(index);
 				Repaint();
 			}
 		} else {
-			if (Handles.Button(pointWithOffset, bezierHandleRotation, size * handleSize, size * pickSize, Handles.CircleCap)) {
+			if (Handles.Button(pointWithOffset, bezierHandleRotation, size * handleSize, size * pickSize, Handles.CircleHandleCap)) {
 				selectedIndex = SelectIndex(index);
 				Repaint();
 			}

@@ -20,7 +20,7 @@ namespace ParticlePlayground {
 		
 		public static int meshQuantity;
 		public static int particlesQuantity;
-		public static float version = 3.03f;
+		public static float version = 3.1f;
 		public static string specialVersion = " ";
 		
 		
@@ -186,7 +186,7 @@ namespace ParticlePlayground {
 		/// <summary>
 		/// Automatically parent a PlaygroundParticlesC object to Playground if it has no parent.
 		/// </summary>
-		[HideInInspector] public bool autoGroup = true;										
+		[HideInInspector] public bool autoGroup = false;										
 		/// <summary>
 		/// Turn this on if you want to build particles from 0 alpha pixels into states.
 		/// </summary>
@@ -249,14 +249,14 @@ namespace ParticlePlayground {
 		/// </summary>
 		[HideInInspector] public int maxThreads = 8;
 		
-		#if UNITY_WSA && !UNITY_EDITOR
+		#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 		#else
 		/// <summary>
 		/// The Particle Playground-managed thread pool. The maxThreads value will determine how many threads will be available in the pool.
 		/// </summary>
 		public static PlaygroundQueue<Action> playgroundPool;
 		#endif
-		
+
 		bool isDoneThread = true;
 		bool isDoneThreadLocal = true;
 		bool isDoneThreadSkinned = true;
@@ -1384,7 +1384,7 @@ namespace ParticlePlayground {
 			reference._prevMaxThreadCount = reference.maxThreads;
 			
 			// Resize the Playground Pool if necessary
-			#if UNITY_WSA && !UNITY_EDITOR
+			#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 			#else
 			if (reference.threadPoolMethod == ThreadPoolMethod.PlaygroundPool && playgroundPool != null)
 				playgroundPool.SetThreadPool(reference.maxThreads);
@@ -1442,7 +1442,7 @@ namespace ParticlePlayground {
 			// Determine that the reference is available
 			hasReference = reference != null;
 			
-			#if UNITY_WSA && !UNITY_EDITOR
+			#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 			#else
 			// Determine that a Playground Pool is available
 			hasPlaygroundPool = playgroundPool != null;
@@ -1510,7 +1510,7 @@ namespace ParticlePlayground {
 					// Catch up Shuriken particle lifetime with the update rate
 					if (Time.frameCount%particleSystems[i].updateRate!=0) {
 						for (int p = 0; p<particleSystems[i].particleCount; p++)
-							particleSystems[i].particleCache[p].lifetime = (particleSystems[i].playgroundCache.death[p]-particleSystems[i].playgroundCache.birth[p])-particleSystems[i].playgroundCache.lifetimeSubtraction[p];
+							particleSystems[i].particleCache[p].remainingLifetime = (particleSystems[i].playgroundCache.death[p]-particleSystems[i].playgroundCache.birth[p])-particleSystems[i].playgroundCache.lifetimeSubtraction[p];
 						particleSystems[i].isReadyForThreadedCalculations = false;
 						continue;
 					}
@@ -1606,7 +1606,7 @@ namespace ParticlePlayground {
 		/// This runs before the threaded calculations as we otherwise experience teared presentation of their movement.
 		/// </summary>
 		void Update () {
-			#if UNITY_WSA && !UNITY_EDITOR
+			#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 			// Playground Pool is not compatible with Windows Store/Universal, fall back to the .NET Thread Pool
 			threadPoolMethod = ThreadPoolMethod.ThreadPool;
 			#endif
@@ -1791,12 +1791,17 @@ namespace ParticlePlayground {
 							if (particleSystems[i].isReadyForThreadedCalculations && particleSystems[i].threadMethod==ThreadMethodLocal.Inherit)
 								PlaygroundParticlesC.NewCalculatedThread(particleSystems[i]);
 						
-						// Particle systems more than processors
+					// Particle systems more than processors
 					} else {
-						int index = 0;
+						//int index = 0;
 						float systemsPerBundle = (activeSystems.Count*1f/threads*1f);
-						float currentSystems = 0;
-						int oldSystems = 0;
+						playgroundPool.actionsPerThread = Mathf.RoundToInt(systemsPerBundle);
+						for(int i = 0; i<particleSystems.Count; i++)
+							if (particleSystems[i].isReadyForThreadedCalculations && particleSystems[i].threadMethod==ThreadMethodLocal.Inherit)
+								PlaygroundParticlesC.NewCalculatedThread(particleSystems[i]);
+						//float currentSystems = 0;
+						//int oldSystems = 0;
+						/*
 						for (int i = 0; i<threads; i++) {
 							currentSystems += systemsPerBundle;
 							PlaygroundParticlesC[] systemBundle = new PlaygroundParticlesC[Mathf.RoundToInt(currentSystems-oldSystems)];
@@ -1808,6 +1813,7 @@ namespace ParticlePlayground {
 							}
 							PlaygroundParticlesC.NewCalculatedThread(systemBundle);
 						}
+						*/
 					}
 				}
 				break;
@@ -1817,7 +1823,7 @@ namespace ParticlePlayground {
 			threadAggregatorRuns++;
 		}
 		
-		#if UNITY_WSA && !UNITY_EDITOR
+		#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 		/// <summary>
 		/// Runs an action asynchrounously on a second thread. This overload is only accessible for Windows Store/Universal compatibility. Use a lambda expression to pass data to another thread.
 		/// </summary>
@@ -1839,7 +1845,7 @@ namespace ParticlePlayground {
 		public static void RunAsync (Action a, ThreadPoolMethod threadPoolMethod) {
 			#if UNITY_WEBGL && !UNITY_EDITOR
 			a();
-			#elif UNITY_WSA && !UNITY_EDITOR
+			#elif UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 			lock (locker)
 				ThreadPool.QueueUserWorkItem(RunAction, a);
 			#else
@@ -1901,7 +1907,7 @@ namespace ParticlePlayground {
 		#endif
 	}
 	
-	#if UNITY_WSA && !UNITY_EDITOR
+	#if UNITY_WSA && !UNITY_EDITOR && !ENABLE_IL2CPP
 	#else
 	/// <summary>
 	/// The Playground Queue class is a self-managed thread pool which consumes actions sent into EnqueueTask(Action).
@@ -1912,6 +1918,19 @@ namespace ParticlePlayground {
 		private List<Thread> _workers;
 		readonly Queue<T> _taskQueue = new Queue<T>();
 		readonly Action<T> _dequeueAction;
+		private int _actionsPerThread = 1;
+		/// <summary>
+		/// Gets or sets the amount of calculation actions per thread. This is handled automatically by Particle Playground.
+		/// </summary>
+		/// <value>The number of calculation actions per thread.</value>
+		public int actionsPerThread {
+			get {
+				return _actionsPerThread;
+			}
+			set {
+				_actionsPerThread = Mathf.Max (1, value);
+			}
+		}
 		
 		/// <summary>
 		/// Initializes a new instance of the <see cref="PlaygroundQueue{T}"/> class.
@@ -2004,18 +2023,21 @@ namespace ParticlePlayground {
 		{
 			while (true)
 			{
-				T item;
-				lock (_locker)
+				for (int i = 0; i<_actionsPerThread; i++)
 				{
-					while (_taskQueue.Count == 0) 
-						Monitor.Wait(_locker);
-					item = _taskQueue.Dequeue();
+					T item;
+					lock (_locker)
+					{
+						while (_taskQueue.Count == 0) 
+							Monitor.Wait(_locker);
+						item = _taskQueue.Dequeue();
+					}
+					if (item == null)
+						return;
+					
+					// Run the action
+					_dequeueAction(item);
 				}
-				if (item == null)
-					return;
-				
-				// Run the action
-				_dequeueAction(item);
 			}
 		}
 		
@@ -3453,17 +3475,17 @@ namespace ParticlePlayground {
 			}
 			isDoneThread = true;
 		}
-		
+
+		private System.Action _updateAction;
 		/// <summary>
 		/// Updates this Skinned World Object on a new thread.
 		/// </summary>
 		public void UpdateOnNewThread () {
+			if (_updateAction == null)
+				_updateAction = Update;
 			if (isDoneThread) {
 				isDoneThread = false;
-				PlaygroundC.RunAsync(()=> {
-					if (isDoneThread) return;
-					Update();
-				});
+				PlaygroundC.RunAsync(_updateAction);
 			}
 		}
 		
@@ -4806,15 +4828,31 @@ namespace ParticlePlayground {
 		/// <summary>
 		/// The position to send (if inheritance is User).
 		/// </summary>
-		public Vector3 eventPosition;								
+		public Vector3 eventPosition;
 		/// <summary>
-		/// The velocity to send (if inheritance is User).
+		/// The velocity value method determines if a constant (eventVelocity) or random between two values (eventVelocity - eventVelocityMin) will create the initial velocity for the particle birthed upon the event.
 		/// </summary>
-		public Vector3 eventVelocity;								
+		public VALUEMETHOD velocityValueMethod = VALUEMETHOD.Constant;
+		/// <summary>
+		/// The velocity random method determines the velocity distribution when velocityValueMethod is set to VALUEMETHOD.RandomBetweenTwoValues. This behaves similar to the randomly generated initial velocity upon regular particle birth.
+		/// </summary>
+		public MINMAXVECTOR3METHOD velocityRandomMethod = MINMAXVECTOR3METHOD.Rectangular;
+		/// <summary>
+		/// The initial velocity to send (if inheritance is User). This is the maximum velocity when velocityValueMethod is set to VALUEMETHOD.RandomBetweenTwoValues, otherwise it represents the constant initial velocity.
+		/// </summary>
+		public Vector3 eventVelocity;
+		/// <summary>
+		/// The initial minimum velocity to send (if inheritance is User). Note that velocityValueMethod needs to be set to VALUEMETHOD.RandomBetweenTwoValues for this to have any effect.
+		/// </summary>
+		public Vector3 eventVelocityMin;
 		/// <summary>
 		/// The color to send (if inheritance is User).
 		/// </summary>
-		public Color32 eventColor = Color.white;					
+		public Color32 eventColor = Color.white;
+		/// <summary>
+		/// The particle emission amount upon the event (default: 1).
+		/// </summary>
+		public int eventEmitCount = 1;
 		/// <summary>
 		/// The time between events (if type is set to Time).
 		/// </summary>
@@ -4884,12 +4922,17 @@ namespace ParticlePlayground {
 			playgroundEvent.eventInheritanceColor = eventInheritanceColor;
 			playgroundEvent.eventPosition = eventPosition;
 			playgroundEvent.eventVelocity = eventVelocity;
+			playgroundEvent.eventVelocityMin = eventVelocityMin;
+			playgroundEvent.velocityRandomMethod = velocityRandomMethod;
+			playgroundEvent.velocityValueMethod = velocityValueMethod;
 			playgroundEvent.eventColor = eventColor;
+			playgroundEvent.eventEmitCount = eventEmitCount;
 			playgroundEvent.eventTime = eventTime;
 			playgroundEvent.collisionThreshold = collisionThreshold;
 			playgroundEvent.velocityMultiplier = velocityMultiplier;
 			playgroundEvent.particleEvent = particleEvent;
 			playgroundEvent.broadcastType = broadcastType;
+
 			return playgroundEvent;
 		}
 	}

@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using ParticlePlayground;
 using PlaygroundSplines;
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 #else
 using UnityEngine.SceneManagement;
 #endif
@@ -58,8 +58,8 @@ public class FxCycle : MonoBehaviour {
 	void Start () {
 		
 		// Mouse cursor not wanted
-#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
-		Cursor.visible = false;
+#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+		Screen.showCursor = false;
 #else
 		Cursor.visible = false;
 #endif
@@ -148,7 +148,7 @@ public class FxCycle : MonoBehaviour {
 		yield return new WaitForSeconds(2f);
 		#if UNITY_STANDALONE
 		Application.Quit();
-		#elif UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+		#elif UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 		Application.LoadLevel (Application.loadedLevel);
 		#else
 		SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -189,7 +189,7 @@ public class FxCycle : MonoBehaviour {
 		// Reset scene
 		if (Input.GetKeyDown(KeyCode.R))
 		{
-			#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+			#if UNITY_4_3 || UNITY_4_5 || UNITY_4_6 || UNITY_4_7 || UNITY_4_8 || UNITY_4_9 || UNITY_5_0 || UNITY_5_1 || UNITY_5_2
 			Application.LoadLevel (Application.loadedLevel);
 			#else
 			SceneManager.LoadScene(SceneManager.GetActiveScene().name);

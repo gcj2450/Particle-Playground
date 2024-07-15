@@ -543,22 +543,35 @@ namespace PlaygroundSplines {
 			modes.Reverse();
 		}
 		
-		public void SwapNodes (int from, int to) {
-			Vector3[] fromPoints = points.GetRange (from, 3).ToArray();
-			Vector3[] toPoints = points.GetRange (to, 3).ToArray();
-			TransformNode[] fromTnode = transformNodes.GetRange (from, 3).ToArray();
-			TransformNode[] toTnode = transformNodes.GetRange (to, 3).ToArray();
+		/// <summary>
+		/// Swaps node indexes where the 'from' index will be replaced with the 'to' index. This will only shift the main nodes to draw the spline in a new order, not the bezier handles.
+		/// </summary>
+		/// <param name="from">From node index.</param>
+		/// <param name="to">To node index.</param>
+		public void SwapNodes (int from, int to)
+		{
+			from = Mathf.Clamp(from, 0, NodeCount+1);
+			to = Mathf.Clamp(to, 0, NodeCount+1);
+			if (from == to)
+			{
+				Debug.Log("From and to is expecting different node indexes.");
+				return;
+			}
+
+			int fromIndex = from * 3;
+			int toIndex = to * 3;
+
+			Vector3 fromPoint = points[fromIndex];
+			Vector3 toPoint = points[toIndex];
+			TransformNode fromTransformNode = transformNodes[fromIndex];
+			TransformNode toTransformNode = transformNodes[toIndex];
 			BezierControlPointMode fromMode = modes[from];
 			BezierControlPointMode toMode = modes[to];
-			
-			for (int i = from; i<3; i++) {
-				points[i] = toPoints[i];
-				transformNodes[i] = toTnode[i];
-			}
-			for (int i = to; i<3; i++) {
-				points[i] = fromPoints[i];
-				transformNodes[i] = fromTnode[i];
-			}
+
+			SetControlPoint(fromIndex, toPoint);
+			SetControlPoint(toIndex, fromPoint);
+			transformNodes[fromIndex] = toTransformNode;
+			transformNodes[toIndex] = fromTransformNode;
 			modes[from] = toMode;
 			modes[to] = fromMode;
 		}

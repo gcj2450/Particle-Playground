@@ -84,6 +84,7 @@ public class PlaygroundSettingsC : ScriptableObject {
 	public bool advancedTimeFoldout = false;
 	public bool advancedSimulationFoldout = false;
 	public bool advancedRebirthOptionsFoldout = false;
+	public bool advancedSeedFoldout = false;
 	public bool advancedLocksFoldout = false;
 	public bool advancedOnEnableFoldout = false;
 	public bool advancedAutoPauseFoldout = false;
@@ -128,6 +129,7 @@ public class PlaygroundSettingsC : ScriptableObject {
 	public string brushPath = "Playground Assets/Brushes/";
 	public string languagePath = "Playground Assets/Settings/Languages/";
 	public string scriptPath = "Scripts/";
+	public string extensionPath = "Extensions/";
 	public string versionUrl = "http://www.polyfied.com/products/playgroundversion.php";
 	public string extensionsUrl = "http://www.polyfied.com/products/playground/extensions/extensions.xml";
 
@@ -165,6 +167,10 @@ public class PlaygroundSettingsC : ScriptableObject {
 	public float maximumAllowedTurbulenceScale = 10f;					// The maximum value for turbulence scale
 	public float maximumAllowedStretchSpeed = 10f;						// The maximum value for stretch speed
 	public int maximumAllowedPrewarmCycles = 128;						// The maximum value for prewarm cycles (resolution)
+
+	// Screen
+	public bool useCustomScreenDPI = false;								// Determines if customScreenDPI should be used instead of Screen.dpi
+	public float customScreenDPI = 72f;									// The dots per inch of the screen (used for calculating the width of certain GUI elements)
 
 	// Textures
 	public Texture2D playgroundIcon;
@@ -398,6 +404,13 @@ public class PlaygroundSettingsC : ScriptableObject {
 
 			}
 		}
+	}
+
+	public float GetScreenDPI ()
+	{
+		if (useCustomScreenDPI || Screen.dpi == 0)
+			return customScreenDPI;
+		return Screen.dpi;
 	}
 	
 #endif

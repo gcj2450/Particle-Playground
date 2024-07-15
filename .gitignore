@@ -79,3 +79,11 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+/UserSettings
+/.vs
+/Library
+/Logs
+/obj
+/Temp
+/UnityPackageManager
+/.vsconfig
